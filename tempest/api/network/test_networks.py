@@ -420,7 +420,7 @@ class NetworksIpV6TestJSON(NetworksTestJSON):
                                          (None, 'dhcpv6-stateful'),
                                          (None, None)
                                         ]
-        for ra_mode, address_mode in ipv6_valid_modes_combinations:
+       for ra_mode, address_mode in ipv6_valid_modes_combinations:
             resp, body = self.client.create_network(name=name)
             self.assertEqual('201', resp['status'])
             network = body['network']
@@ -439,6 +439,9 @@ class NetworksIpV6TestJSON(NetworksTestJSON):
                 subnet = self.create_subnet(network, gateway='fe80::1')
 
 
+            subnet = self.create_subnet(network, gateway='fe80::1',
+                                        ipv6_ra_mode=ra_mode,
+                                        ipv6_address_mode=address_mode)
             # Verifies Subnet GW in IPv6
             self.assertEqual(subnet['gateway_ip'], 'fe80::1')
             self.assertEqual(subnet['ipv6_ra_mode'], ra_mode)
