@@ -420,7 +420,7 @@ class NetworksIpV6TestJSON(NetworksTestJSON):
                                          (None, 'dhcpv6-stateful'),
                                          (None, None)
                                         ]
-       for ra_mode, address_mode in ipv6_valid_modes_combinations:
+        for ra_mode, address_mode in ipv6_valid_modes_combinations:
             resp, body = self.client.create_network(name=name)
             self.assertEqual('201', resp['status'])
             network = body['network']
