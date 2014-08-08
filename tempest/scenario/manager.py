@@ -433,7 +433,6 @@ class OfficialClientTest(tempest.test.BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super(OfficialClientTest, cls).setUpClass()
-        cls.network_resources.setdefault('ip_version', cls._ip_version)
         cls.isolated_creds = isolated_creds.IsolatedCreds(
             cls.__name__, tempest_client=False,
             network_resources=cls.network_resources)
@@ -1144,7 +1143,6 @@ class NetworkScenarioTest(OfficialClientTest):
     """
     Base class for network scenario tests
     """
-    _ip_version = 4
 
     @classmethod
     def check_preconditions(cls):
@@ -1223,16 +1221,12 @@ class NetworkScenarioTest(OfficialClientTest):
             cidr_in_use = self._list_subnets(tenant_id=tenant_id, cidr=cidr)
             return len(cidr_in_use) != 0
 
-        if self._ip_version == 6:
-            tenant_cidr = netaddr.IPNetwork(CONF.network.tenant_network_v6_cidr)
-            network_prefix = CONF.network.tenant_network_v6_mask_bits
-        else:
-            tenant_cidr = netaddr.IPNetwork(CONF.network.tenant_network_cidr)
-            network_prefix = CONF.network.tenant_network_mask_bits
+        tenant_cidr = netaddr.IPNetwork(CONF.network.tenant_network_cidr)
         result = None
         # Repeatedly attempt subnet creation with sequential cidr
         # blocks until an unallocated block is found.
-        for subnet_cidr in tenant_cidr.subnet(network_prefix):
+        for subnet_cidr in tenant_cidr.subnet(
+            CONF.network.tenant_network_mask_bits):
             str_cidr = str(subnet_cidr)
             if cidr_in_use(str_cidr, tenant_id=network.tenant_id):
                 continue
@@ -1240,7 +1234,7 @@ class NetworkScenarioTest(OfficialClientTest):
             body = dict(
                 subnet=dict(
                     name=data_utils.rand_name(namestart),
-                    ip_version=self._ip_version,
+                    ip_version=4,
                     network_id=network.id,
                     tenant_id=network.tenant_id,
                     cidr=str_cidr,
