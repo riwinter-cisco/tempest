@@ -21,7 +21,6 @@ import subprocess
 import netaddr
 import six
 
-from tempest.api.network import common as net_common
 from tempest import auth
 from tempest import clients
 from tempest.common import debug
@@ -47,23 +46,14 @@ LOG_cinder_client.addHandler(log.NullHandler())
 
 
 class ScenarioTest(tempest.test.BaseTestCase):
-    """Replaces the OfficialClientTest base class.
-
-    Uses tempest own clients as opposed to OfficialClients.
-
-    Common differences:
-    - replace resource.attribute with resource['attribute']
-    - replace resouce.delete with delete_callable(resource['id'])
-    - replace local waiters with common / rest_client waiters
-    """
+    """Base class for scenario tests. Uses tempest own clients. """
 
     @classmethod
-    def setUpClass(cls):
-        super(ScenarioTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(ScenarioTest, cls).resource_setup()
         # Using tempest client for isolated credentials as well
         cls.isolated_creds = isolated_creds.IsolatedCreds(
-            cls.__name__, tempest_client=True,
-            network_resources=cls.network_resources)
+            cls.__name__, network_resources=cls.network_resources)
         cls.manager = clients.Manager(
             credentials=cls.credentials()
         )
@@ -279,12 +269,26 @@ class ScenarioTest(tempest.test.BaseTestCase):
                 'to_port': 22,
                 'cidr': '0.0.0.0/0',
             },
+             {
+                # ssh -6
+                'ip_proto': 'tcp',
+                'from_port': 22,
+                'to_port': 22,
+                'cidr': '::/0',
+            },
             {
                 # ping
                 'ip_proto': 'icmp',
                 'from_port': -1,
                 'to_port': -1,
                 'cidr': '0.0.0.0/0',
+            },
+            {
+                # ping6
+                'ip_proto': 'icmp',
+                'from_port': -1,
+                'to_port': -1,
+                'cidr': '::/0',
             }
         ]
         rules = list()
@@ -396,6 +400,12 @@ class ScenarioTest(tempest.test.BaseTestCase):
             LOG.debug(self.servers_client.get_console_output(server['id'],
                                                              length=None))
 
+    def _log_net_info(self, exc):
+        # network debug is called as part of ssh init
+        if not isinstance(exc, exceptions.SSHTimeout):
+            LOG.debug('Network information on a devstack host')
+            debug.log_net_debug()
+
     def create_server_snapshot(self, server, name=None):
         # Glance client
         _image_client = self.image_client
@@ -454,7 +464,9 @@ class ScenarioTest(tempest.test.BaseTestCase):
             self.servers_client.wait_for_server_status(server_id, 'ACTIVE')
 
     def ping_ip_address(self, ip_address, should_succeed=True):
-        cmd = ['ping', '-c1', '-w1', ip_address]
+        ip_version = netaddr.IPAddress(ip_address).version
+        ping_cmd = 'ping6' if ip_version == 6 else 'ping'
+        cmd = [ping_cmd, '-c1', '-w1', ip_address]
 
         def ping():
             proc = subprocess.Popen(cmd,
@@ -477,7 +489,6 @@ class NetworkScenarioTest(ScenarioTest):
     Subclassed tests will be skipped if Neutron is not enabled
 
     """
-    _ip_version = 4
 
     @classmethod
     def check_preconditions(cls):
@@ -485,8 +496,8 @@ class NetworkScenarioTest(ScenarioTest):
             raise cls.skipException('Neutron not available')
 
     @classmethod
-    def setUpClass(cls):
-        super(NetworkScenarioTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(NetworkScenarioTest, cls).resource_setup()
         cls.tenant_id = cls.manager.identity_client.tenant_id
         cls.check_preconditions()
 
@@ -544,8 +555,7 @@ class NetworkScenarioTest(ScenarioTest):
             """
             cidr_in_use = self._list_subnets(tenant_id=tenant_id, cidr=cidr)
             return len(cidr_in_use) != 0
-
-        ip_version = kwargs.get('ip_version', self._ip_version)
+        ip_version = kwargs.get('ip_version', getattr(self, "_ip_version", 4))
         if ip_version == 6:
             tenant_cidr = \
                 netaddr.IPNetwork(CONF.network.tenant_network_v6_cidr)
@@ -555,6 +565,8 @@ class NetworkScenarioTest(ScenarioTest):
             network_prefix = CONF.network.tenant_network_mask_bits
         if net_max_bits:
             network_prefix = net_max_bits
+
+        #tenant_cidr = netaddr.IPNetwork(CONF.network.tenant_network_cidr)
         result = None
         # Repeatedly attempt subnet creation with sequential cidr
         # blocks until an unallocated block is found.
@@ -565,13 +577,12 @@ class NetworkScenarioTest(ScenarioTest):
 
             subnet = dict(
                 name=data_utils.rand_name(namestart),
+                ip_version=ip_version,
                 network_id=network.id,
                 tenant_id=network.tenant_id,
                 cidr=str_cidr,
                 **kwargs
             )
-            if 'ip_version' not in kwargs:
-                subnet['ip_version'] = ip_version
             try:
                 _, result = client.create_subnet(**subnet)
                 break
@@ -600,27 +611,35 @@ class NetworkScenarioTest(ScenarioTest):
         self.addCleanup(self.delete_wrapper, port.delete)
         return port
 
-    def _get_server_port_id(self, server, ip_addr=None):
+    def _get_server_port_id_and_ips(self, server, ip_addr=None):
         ports = self._list_ports(device_id=server['id'],
                                  fixed_ip=ip_addr)
         self.assertEqual(len(ports), 1,
                          "Unable to determine which port to target.")
-        return ports[0]['id']
+        ip4 = None
+        for ip46 in ports[0]['fixed_ips']:
+            ip = ip46['ip_address']
+            if netaddr.valid_ipv4(ip):
+                ip4 = ip
+        return ports[0]['id'], ip4
 
     def _get_network_by_name(self, network_name):
         net = self._list_networks(name=network_name)
-        return net_common.AttributeDict(net[0])
+        return net_resources.AttributeDict(net[0])
 
     def _create_floating_ip(self, thing, external_network_id, port_id=None,
                             client=None):
         if not client:
             client = self.network_client
         if not port_id:
-            port_id = self._get_server_port_id(thing)
+            port_id, ip4 = self._get_server_port_id_and_ips(thing)
+        else:
+            ip4 = None
         _, result = client.create_floatingip(
             floating_network_id=external_network_id,
             port_id=port_id,
-            tenant_id=thing['tenant_id']
+            tenant_id=thing['tenant_id'],
+            fixed_ip_address=ip4  # floating for ipv6 is not supported
         )
         floating_ip = net_resources.DeletableFloatingIp(
             client=client,
@@ -629,7 +648,7 @@ class NetworkScenarioTest(ScenarioTest):
         return floating_ip
 
     def _associate_floating_ip(self, floating_ip, server):
-        port_id = self._get_server_port_id(server)
+        port_id = self._get_server_port_id_and_ips(server)[0]
         floating_ip.update(port_id=port_id)
         self.assertEqual(port_id, floating_ip.port_id)
         return floating_ip
@@ -686,9 +705,7 @@ class NetworkScenarioTest(ScenarioTest):
                 ex_msg += ": " + msg
             LOG.exception(ex_msg)
             self._log_console_output(servers)
-            # network debug is called as part of ssh init
-            if not isinstance(e, exceptions.SSHTimeout):
-                debug.log_net_debug()
+            self._log_net_info(e)
             raise
 
     def _check_tenant_network_connectivity(self, server,
@@ -712,9 +729,7 @@ class NetworkScenarioTest(ScenarioTest):
         except Exception as e:
             LOG.exception('Tenant network connectivity check failed')
             self._log_console_output(servers_for_debug)
-            # network debug is called as part of ssh init
-            if not isinstance(e, exceptions.SSHTimeout):
-                debug.log_net_debug()
+            self._log_net_info(e)
             raise
 
     def _check_remote_connectivity(self, source, dest, should_succeed=True):
@@ -1022,8 +1037,8 @@ class BaremetalProvisionStates(object):
 
 class BaremetalScenarioTest(ScenarioTest):
     @classmethod
-    def setUpClass(cls):
-        super(BaremetalScenarioTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(BaremetalScenarioTest, cls).resource_setup()
 
         if (not CONF.service_available.ironic or
            not CONF.baremetal.driver_enabled):
@@ -1154,8 +1169,8 @@ class EncryptionScenarioTest(ScenarioTest):
     """
 
     @classmethod
-    def setUpClass(cls):
-        super(EncryptionScenarioTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(EncryptionScenarioTest, cls).resource_setup()
         cls.admin_volume_types_client = cls.admin_manager.volume_types_client
 
     def _wait_for_volume_status(self, status):
@@ -1201,8 +1216,8 @@ class OrchestrationScenarioTest(ScenarioTest):
     """
 
     @classmethod
-    def setUpClass(cls):
-        super(OrchestrationScenarioTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(OrchestrationScenarioTest, cls).resource_setup()
         if not CONF.service_available.heat:
             raise cls.skipException("Heat support is required")
 
@@ -1246,9 +1261,9 @@ class SwiftScenarioTest(ScenarioTest):
     """
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         cls.set_network_resources()
-        super(SwiftScenarioTest, cls).setUpClass()
+        super(SwiftScenarioTest, cls).resource_setup()
         if not CONF.service_available.swift:
             skip_msg = ("%s skipped as swift is not available" %
                         cls.__name__)
