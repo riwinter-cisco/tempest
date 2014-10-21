@@ -48,6 +48,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
     def setUp(self):
         super(TestCSROneNet, self).setUp()
         LOG.debug("setUp")
+        self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr-')
 
     def _create_new_network(self):
         self.new_net = self._create_network(self.tenant_id)
@@ -89,7 +90,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self._check_server_connectivity(floating_ip, internal_ips)
 
     def test_csr_one_net(self):
-        self.security_group.name = 'default'
+
         LOG.debug("test_csr_one_net")
         LOG.debug("Tenant ID: {0}".format(self.tenant_id))
         self._create_new_network()
