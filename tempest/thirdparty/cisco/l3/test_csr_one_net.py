@@ -51,15 +51,16 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
     def _create_new_network(self):
         self.new_net = self._create_network(self.tenant_id)
-        self.addCleanup(self.cleanup_wrapper, self.new_net)
+        #self.addCleanup(self.cleanup_wrapper, self.new_net)
         self.new_subnet = self._create_subnet(
             network=self.new_net,
             gateway_ip=None)
-        self.addCleanup(self.cleanup_wrapper, self.new_subnet)
+        #self.addCleanup(self.cleanup_wrapper, self.new_subnet)
 
     def test_csr_one_net(self):
         LOG.debug("test_csr_one_net")
         LOG.debug("Tenant ID: {0}".format(self.tenant_id))
         self._create_new_network()
-        LOG.debug("Network: {0}".format(self.new_net))
+        LOG.debug("New Network: {0}".format(self.new_net))
+        LOG.debug("New Subnet: {0}".format(self.new_subnet))
         pass
