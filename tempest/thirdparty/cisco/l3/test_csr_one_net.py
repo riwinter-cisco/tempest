@@ -48,7 +48,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
     def setUp(self):
         super(TestCSROneNet, self).setUp()
         LOG.debug("setUp")
-        self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr-')
+        #self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
 
     def _create_new_network(self):
         self.new_net = self._create_network(self.tenant_id)
@@ -61,7 +61,8 @@ class TestCSROneNet(manager.NetworkScenarioTest):
     def _create_server(self, name, network):
         keypair = self.create_keypair(name='keypair-%s' % name)
         self.addCleanup(self.cleanup_wrapper, keypair)
-        security_groups = [self.security_group.name]
+        #security_groups = [self.security_group.name]
+        security_groups = ['default']
         create_kwargs = {
             'nics': [
                 {'net-id': network.id},
