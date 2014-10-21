@@ -22,12 +22,13 @@ from tempest import config
 from tempest.openstack.common import log as logging
 from tempest.scenario import manager
 from tempest import test
+from tempest.scenario.test_network_basic_ops import TestNetworkBasicOps
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class TestCSROneNet(manager.NetworkScenarioTest):
+class TestCSROneNet(TestNetworkBasicOps):
 
     @classmethod
     def check_preconditions(cls):
@@ -38,7 +39,8 @@ class TestCSROneNet(manager.NetworkScenarioTest):
     def setUpClass(cls):
         super(TestCSROneNet, cls).setUpClass()
         LOG.debug("setupUpClass")
-        cls.check_preconditions()
+        cls.tenant_id = cls.manager.identity_client.tenant_id
+        #cls.check_preconditions()
 
     def cleanup_wrapper(self, resource):
         self.cleanup_resource(resource, self.__class__.__name__)
@@ -50,3 +52,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
     def test_csr_one_net(self):
         LOG.debug("test_csr_one_net")
+        LOG.debug("Tenant ID: {0}".format(self.tenant_id))
+        self._create_new_network()
+        LOG.debug("Network: {0}".format(self.new_net))
+        pass
