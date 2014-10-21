@@ -51,11 +51,42 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
     def _create_new_network(self):
         self.new_net = self._create_network(self.tenant_id)
-        #self.addCleanup(self.cleanup_wrapper, self.new_net)
+        self.addCleanup(self.cleanup_wrapper, self.new_net)
         self.new_subnet = self._create_subnet(
             network=self.new_net,
             gateway_ip=None)
-        #self.addCleanup(self.cleanup_wrapper, self.new_subnet)
+        self.addCleanup(self.cleanup_wrapper, self.new_subnet)
+
+    def _create_server(self, name, network):
+        keypair = self.create_keypair(name='keypair-%s' % name)
+        self.addCleanup(self.cleanup_wrapper, keypair)
+        security_groups = [self.security_group.name]
+        create_kwargs = {
+            'nics': [
+                {'net-id': network.id},
+            ],
+            'key_name': keypair.name,
+            'security_groups': security_groups,
+        }
+        server = self.create_server(name=name, create_kwargs=create_kwargs)
+        self.addCleanup(self.cleanup_wrapper, server)
+        return dict(server=server, keypair=keypair)
+
+    def _check_network_internal_connectivity(self, network):
+        """
+        via ssh check VM internal connectivity:
+        - ping internal gateway and DHCP port, implying in-tenant connectivity
+        pinging both, because L3 and DHCP agents might be on different nodes
+        """
+        floating_ip, server = self.floating_ip_tuple
+        # get internal ports' ips:
+        # get all network ports in the new network
+        internal_ips = (p['fixed_ips'][0]['ip_address'] for p in
+                        self._list_ports(tenant_id=server.tenant_id,
+                                         network_id=network.id)
+                        if p['device_owner'].startswith('network'))
+
+        self._check_server_connectivity(floating_ip, internal_ips)
 
     def test_csr_one_net(self):
         LOG.debug("test_csr_one_net")
@@ -63,4 +94,14 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self._create_new_network()
         LOG.debug("New Network: {0}".format(self.new_net))
         LOG.debug("New Subnet: {0}".format(self.new_subnet))
-        pass
+
+        ## Create a VM on the network
+        serv_dict = self._create_server("TVM1", self.new_net)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
+        LOG.debug("Server dictionary:  {0}".format(serv_dict))
+
+        ## Create a 2nd VM on the network
+        serv_dict = self._create_server("TVM2", self.new_net)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
+        LOG.debug("Server dictionary:  {0}".format(serv_dict))
+
