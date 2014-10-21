@@ -22,13 +22,13 @@ from tempest import config
 from tempest.openstack.common import log as logging
 from tempest.scenario import manager
 from tempest import test
-from tempest.scenario.test_network_basic_ops import TestNetworkBasicOps
+from tempest.scenario import test_network_basic_ops
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class TestCSROneNet(TestNetworkBasicOps):
+class TestCSROneNet(test_network_basic_ops.TestNetworkBasicOps):
 
     @classmethod
     def check_preconditions(cls):
