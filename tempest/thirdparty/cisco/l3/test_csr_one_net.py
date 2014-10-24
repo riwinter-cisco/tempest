@@ -106,12 +106,12 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("  Status: {0}".format(net['status']))
             LOG.debug("  Provider Seg ID: {0}".format(net['provider:segmentation_id']))
             LOG.debug("  Subnets:{0}".format((net['subnets'])))
-            subnet_id = net['subnets'].pop()
+            subnet = self._list_subnets(net['subnets'].pop())
+            LOG.debug("   Subnet: {0}".format(subnet['name']))
+            LOG.debug("    CIDR: {0}".format(subnet['cidr']))
+            LOG.debug("===========================================")
 
-        subnets = self._list_subnets()
-        LOG.debug("Subnets: {0}".format(subnets))
-        LOG.debug("SubID: {0}".format(subnet_id))
-        LOG.debug("Subnet: {0}".format(self._list_subnets(id=subnet_id)))
+
 
         #self._create_new_network()
         #LOG.debug("New Network: {0}".format(self.new_net))
