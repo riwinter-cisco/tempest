@@ -99,7 +99,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         seen_nets = self._list_networks()
         LOG.debug("Seen nets = {0}".format(seen_nets))
-        subnet_id = None
+
         for net in seen_nets:
             LOG.debug("===========================================")
             LOG.debug("Network:  {0}".format(net['name']))
@@ -107,8 +107,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("  Provider Seg ID: {0}".format(net['provider:segmentation_id']))
             LOG.debug("  Subnets:{0}".format((net['subnets'])))
             subnet = self._list_subnets(id=net['subnets'].pop())
-            LOG.debug("   Subnet: {0}".format(subnet['name']))
-            LOG.debug("    CIDR: {0}".format(subnet['cidr']))
+            LOG.debug("    Subnet:{0}".format(subnet))
+            #LOG.debug("   Subnet: {0}".format(subnet['name']))
+            #LOG.debug("    CIDR: {0}".format(subnet['cidr']))
             LOG.debug("===========================================")
 
 
