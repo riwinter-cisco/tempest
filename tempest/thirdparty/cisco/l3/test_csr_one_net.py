@@ -95,6 +95,10 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         LOG.debug("test_csr_one_net")
         LOG.debug("Tenant ID: {0}".format(self.tenant_id))
+        LOG.debug("CONF = {0}".format(CONF))
+
+        seen_nets = self._list_networks()
+        LOG.debug("Seen nets = {0}".format(seen_nets))
         #self._create_new_network()
         #LOG.debug("New Network: {0}".format(self.new_net))
         #LOG.debug("New Subnet: {0}".format(self.new_subnet))
