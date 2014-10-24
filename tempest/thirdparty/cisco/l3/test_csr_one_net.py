@@ -39,6 +39,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         super(TestCSROneNet, cls).setUpClass()
         LOG.debug("setupUpClass")
         cls.tenant_id = cls.manager.identity_client.tenant_id
+        LOG.debug("Tenant ID: {0}".format(cls.tenant_id))
         #cls.check_preconditions()
 
     def cleanup_wrapper(self, resource):
@@ -94,17 +95,17 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         LOG.debug("test_csr_one_net")
         LOG.debug("Tenant ID: {0}".format(self.tenant_id))
-        self._create_new_network()
-        LOG.debug("New Network: {0}".format(self.new_net))
-        LOG.debug("New Subnet: {0}".format(self.new_subnet))
+        #self._create_new_network()
+        #LOG.debug("New Network: {0}".format(self.new_net))
+        #LOG.debug("New Subnet: {0}".format(self.new_subnet))
 
         ## Create a VM on the network
-        serv_dict = self._create_server("TVM1", self.new_net)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
-        LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        #serv_dict = self._create_server("TVM1", self.new_net)
+        #self.servers[serv_dict['server']] = serv_dict['keypair']
+        #LOG.debug("Server dictionary:  {0}".format(serv_dict))
 
         ## Create a 2nd VM on the network
-        serv_dict = self._create_server("TVM2", self.new_net)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
-        LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        #serv_dict = self._create_server("TVM2", self.new_net)
+        #self.servers[serv_dict['server']] = serv_dict['keypair']
+        #LOG.debug("Server dictionary:  {0}".format(serv_dict))
 
