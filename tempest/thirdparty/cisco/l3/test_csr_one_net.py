@@ -98,7 +98,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         LOG.debug("test_csr_one_net: Start")
         LOG.debug("Tenant ID: {0}".format(self.tenant_id))
-        LOG.debug("Admin Creds: {0}".format(self.credentials(self)))
+        LOG.debug("Admin Creds: {0}".format(self.credentials()))
         LOG.debug("Pub-network = {0}".format(CONF.network.public_network_id))
 
         seen_nets = self._list_networks()
