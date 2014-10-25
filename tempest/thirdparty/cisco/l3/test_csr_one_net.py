@@ -101,10 +101,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("Admin Creds: {0}".format(self.credentials()))
         LOG.debug("Pub-network = {0}".format(CONF.network.public_network_id))
 
-        seen_nets = self._list_networks()
-        LOG.debug("Seen nets = {0}".format(seen_nets))
+        current_nets = self._list_networks()
 
-        for net in seen_nets:
+        for net in current_nets:
             LOG.debug("===========================================")
             LOG.debug("Network:  {0}".format(net['name']))
             LOG.debug("  Status: {0}".format(net['status']))
