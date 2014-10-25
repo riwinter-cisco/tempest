@@ -40,7 +40,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("setupUpClass")
         cls.tenant_id = cls.manager.identity_client.tenant_id
         LOG.debug("Tenant ID: {0}".format(cls.tenant_id))
-        #cls.check_preconditions()
 
     def cleanup_wrapper(self, resource):
         self.cleanup_resource(resource, self.__class__.__name__)
@@ -48,31 +47,35 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
     def setUp(self):
         super(TestCSROneNet, self).setUp()
-        LOG.debug("setUp")
+        LOG.debug("setUp: Start")
         #self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
+        LOG.debug("setUp: End")
 
     def _create_new_network(self):
+        LOG.debug("_create_new_network: Start")
         self.new_net = self._create_network(self.tenant_id)
         self.addCleanup(self.cleanup_wrapper, self.new_net)
         self.new_subnet = self._create_subnet(
             network=self.new_net,
             gateway_ip=None)
         self.addCleanup(self.cleanup_wrapper, self.new_subnet)
+        LOG.debug("_create_new_network: End")
 
     def _create_server(self, name, network):
+        LOG.debug("_create_server: Start")
         keypair = self.create_keypair(name='keypair-%s' % name)
         self.addCleanup(self.cleanup_wrapper, keypair)
         #security_groups = [self.security_group.name]
-        security_groups = ['default']
+
         create_kwargs = {
             'nics': [
                 {'net-id': network.id},
             ],
             'key_name': keypair.name,
-            'security_groups': security_groups,
         }
         server = self.create_server(name=name, create_kwargs=create_kwargs)
         self.addCleanup(self.cleanup_wrapper, server)
+        LOG.debug("_create_server: End")
         return dict(server=server, keypair=keypair)
 
     def _check_network_internal_connectivity(self, network):
@@ -93,9 +96,10 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
     def test_csr_one_net(self):
 
-        LOG.debug("test_csr_one_net")
+        LOG.debug("test_csr_one_net: Start")
         LOG.debug("Tenant ID: {0}".format(self.tenant_id))
-        LOG.debug("CONF = {0}".format(CONF))
+        LOG.debug("Admin Creds: {0}".format(self.credentials(self)))
+        LOG.debug("Pub-network = {0}".format(CONF.network.public_network_id))
 
         seen_nets = self._list_networks()
         LOG.debug("Seen nets = {0}".format(seen_nets))
@@ -126,4 +130,5 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         #serv_dict = self._create_server("TVM2", self.new_net)
         #self.servers[serv_dict['server']] = serv_dict['keypair']
         #LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        LOG.debug("test_csr_one_net: End")
 
