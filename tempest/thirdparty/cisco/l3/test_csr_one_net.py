@@ -137,7 +137,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("New Network: {0}".format(self.new_net))
         LOG.debug("New Subnet: {0}".format(self.new_subnet))
 
-
         current_nets = self._list_networks()
         for net in current_nets:
             LOG.debug("===========================================")
@@ -150,14 +149,14 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("    CIDR: {0}".format(subnet['cidr']))
             LOG.debug("===========================================")
 
-
-
         ## Create a VM on the network
         svr_name = data_utils.rand_name('server-tvm')
         LOG.debug("Server name: {0}".format(svr_name))
         serv_dict = self._create_server(svr_name, self.new_net)
         #self.servers[serv_dict['server']] = serv_dict['keypair']
         LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        LOG.debug("           Server:  {0}".format(serv_dict['server']))
+        LOG.debug("         Key pair:  {0}".format(serv_dict['keypair']))
 
         ## Create a 2nd VM on the network
         #svr_name = data_utils.rand_name('server-tvm')
