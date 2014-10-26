@@ -32,7 +32,15 @@ class TestCSROneNet(manager.NetworkScenarioTest):
     @classmethod
     def check_preconditions(cls):
         super(TestCSROneNet, cls).check_preconditions()
-        LOG.debug("check_preconditions")
+        LOG.debug("check_preconditions: Start")
+        if not (CONF.network.tenant_networks_reachable
+                or CONF.network.public_network_id):
+            msg = ('Either tenant_networks_reachable must be "true", or '
+                   'public_network_id must be defined.')
+            cls.enabled = False
+            raise cls.skipException(msg)
+        LOG.debug("check_preconditions: End")
+
 
     @classmethod
     def setUpClass(cls):
@@ -48,7 +56,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
     def setUp(self):
         super(TestCSROneNet, self).setUp()
         LOG.debug("setUp: Start")
-        #self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
+        self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
         LOG.debug("setUp: End")
 
     def _create_new_network(self):
