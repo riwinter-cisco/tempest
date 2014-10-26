@@ -41,7 +41,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             raise cls.skipException(msg)
         LOG.debug("check_preconditions: End")
 
-
     @classmethod
     def setUpClass(cls):
         LOG.debug("setUpClass: Start")
@@ -66,6 +65,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         super(TestCSROneNet, self).setUp()
         LOG.debug("setUp: Start")
         self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
+        self.addCleanup(self.cleanup_wrapper, self.security_group)
         LOG.debug("setUp: End")
 
     def _create_new_network(self):
@@ -82,13 +82,14 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("_create_server: Start")
         keypair = self.create_keypair(name='keypair-%s' % name)
         self.addCleanup(self.cleanup_wrapper, keypair)
-        #security_groups = [self.security_group.name]
+        security_groups = [self.security_group.name]
 
         create_kwargs = {
             'nics': [
                 {'net-id': network.id},
             ],
             'key_name': keypair.name,
+            'security_groups': security_groups,
         }
         server = self.create_server(name=name, create_kwargs=create_kwargs)
         self.addCleanup(self.cleanup_wrapper, server)
@@ -131,20 +132,21 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("    CIDR: {0}".format(subnet['cidr']))
             LOG.debug("===========================================")
 
-
-
-        #self._create_new_network()
-        #LOG.debug("New Network: {0}".format(self.new_net))
-        #LOG.debug("New Subnet: {0}".format(self.new_subnet))
+        ## Creating new network
+        self._create_new_network()
+        LOG.debug("New Network: {0}".format(self.new_net))
+        LOG.debug("New Subnet: {0}".format(self.new_subnet))
 
         ## Create a VM on the network
-        #serv_dict = self._create_server("TVM1", self.new_net)
-        #self.servers[serv_dict['server']] = serv_dict['keypair']
-        #LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        svr_name = data_utils.rand_name('server-tvm')
+        serv_dict = self._create_server(svr_name, self.new_net)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
+        LOG.debug("Server dictionary:  {0}".format(serv_dict))
 
         ## Create a 2nd VM on the network
-        #serv_dict = self._create_server("TVM2", self.new_net)
-        #self.servers[serv_dict['server']] = serv_dict['keypair']
-        #LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        svr_name = data_utils.rand_name('server-tvm')
+        serv_dict = self._create_server(svr_name, self.new_net)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
+        LOG.debug("Server dictionary:  {0}".format(serv_dict))
         LOG.debug("test_csr_one_net: End")
 
