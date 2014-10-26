@@ -137,16 +137,32 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("New Network: {0}".format(self.new_net))
         LOG.debug("New Subnet: {0}".format(self.new_subnet))
 
+
+        current_nets = self._list_networks()
+        for net in current_nets:
+            LOG.debug("===========================================")
+            LOG.debug("Network:  {0}".format(net['name']))
+            LOG.debug("  Status: {0}".format(net['status']))
+            LOG.debug("  Provider Seg ID: {0}".format(net['provider:segmentation_id']))
+            LOG.debug("  Subnets:{0}".format((net['subnets'])))
+            subnet = self._list_subnets(id=net['subnets'].pop()).pop()
+            LOG.debug("   Subnet: {0}".format(subnet['name']))
+            LOG.debug("    CIDR: {0}".format(subnet['cidr']))
+            LOG.debug("===========================================")
+
+
+
         ## Create a VM on the network
         svr_name = data_utils.rand_name('server-tvm')
+        LOG.debug("Server name: {0}".format(svr_name))
         serv_dict = self._create_server(svr_name, self.new_net)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
+        #self.servers[serv_dict['server']] = serv_dict['keypair']
         LOG.debug("Server dictionary:  {0}".format(serv_dict))
 
         ## Create a 2nd VM on the network
-        svr_name = data_utils.rand_name('server-tvm')
-        serv_dict = self._create_server(svr_name, self.new_net)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
-        LOG.debug("Server dictionary:  {0}".format(serv_dict))
-        LOG.debug("test_csr_one_net: End")
+        #svr_name = data_utils.rand_name('server-tvm')
+        #serv_dict = self._create_server(svr_name, self.new_net)
+        #self.servers[serv_dict['server']] = serv_dict['keypair']
+        #LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        #LOG.debug("test_csr_one_net: End")
 
