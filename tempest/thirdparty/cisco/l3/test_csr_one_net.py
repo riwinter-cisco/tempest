@@ -103,7 +103,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("Pub-network = {0}".format(CONF.network.public_network_id))
 
         current_nets = self._list_networks()
-
         for net in current_nets:
             LOG.debug("===========================================")
             LOG.debug("Network:  {0}".format(net['name']))
