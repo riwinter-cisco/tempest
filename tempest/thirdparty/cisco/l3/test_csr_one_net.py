@@ -44,10 +44,19 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
     @classmethod
     def setUpClass(cls):
+        LOG.debug("setUpClass: Start")
+        # Create no network resources for these tests.
+        cls.set_network_resources()
         super(TestCSROneNet, cls).setUpClass()
-        LOG.debug("setupUpClass")
+
         cls.tenant_id = cls.manager.identity_client.tenant_id
         LOG.debug("Tenant ID: {0}".format(cls.tenant_id))
+        for ext in ['router', 'security-group']:
+            if not test.is_extension_enabled(ext, 'network'):
+                msg = "%s extension not enabled." % ext
+                raise cls.skipException(msg)
+        cls.check_preconditions()
+        LOG.debug("setUpClass: End")
 
     def cleanup_wrapper(self, resource):
         self.cleanup_resource(resource, self.__class__.__name__)
