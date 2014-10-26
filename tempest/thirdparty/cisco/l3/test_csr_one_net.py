@@ -66,6 +66,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("setUp: Start")
         self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
         self.addCleanup(self.cleanup_wrapper, self.security_group)
+        self.servers = {}
         LOG.debug("setUp: End")
 
     def _create_new_network(self):
