@@ -58,7 +58,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("setUpClass: End")
 
     def cleanup_wrapper(self, resource):
-        self.cleanup_resource(resource, self.__class__.__name__)
+        #self.cleanup_resource(resource, self.__class__.__name__)
         LOG.debug("cleanup_wrapper")
 
     def setUp(self):
@@ -75,6 +75,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.addCleanup(self.cleanup_wrapper, self.new_net)
         self.new_subnet = self._create_subnet(
             network=self.new_net,
+            namestart='csr-smoke',
             gateway_ip=None)
         self.addCleanup(self.cleanup_wrapper, self.new_subnet)
         LOG.debug("_create_new_network: End")
@@ -169,5 +170,8 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
         LOG.debug("Servers: {0}".format(self.servers))
+
+        self._check_public_network_connectivity(should_connect=True)
+
         LOG.debug("test_csr_one_net: End")
 
