@@ -160,11 +160,14 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("         Key pair:  {0}".format(serv_dict['keypair']))
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-
         ## Create a 2nd VM on the network
-        #svr_name = data_utils.rand_name('server-tvm')
-        #serv_dict = self._create_server(svr_name, self.new_net)
-        #self.servers[serv_dict['server']] = serv_dict['keypair']
-        #LOG.debug("Server dictionary:  {0}".format(serv_dict))
-        #LOG.debug("test_csr_one_net: End")
+        svr_name = data_utils.rand_name('server-tvm')
+        serv_dict = self._create_server(svr_name, self.new_net)
+        LOG.debug("Server dictionary:  {0}".format(serv_dict))
+        LOG.debug("           Server:  {0}".format(serv_dict['server']))
+        LOG.debug("         Key pair:  {0}".format(serv_dict['keypair']))
+        self.servers[serv_dict['server']] = serv_dict['keypair']
+
+        LOG.debug("Servers: {0}".format(self.servers))
+        LOG.debug("test_csr_one_net: End")
 
