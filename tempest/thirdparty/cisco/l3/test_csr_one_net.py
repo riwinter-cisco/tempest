@@ -212,8 +212,8 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("===========================================")
 
         LOG.debug("Servers: {0}".format(self.servers))
-        self._check_network_internal_connectivity(self, self.network1)
-        self._check_network_internal_connectivity(self, self.network2)
+        self._check_network_internal_connectivity(self.network1)
+        self._check_network_internal_connectivity(self.network2)
 
         LOG.debug("test_csr_one_net: End")
 
