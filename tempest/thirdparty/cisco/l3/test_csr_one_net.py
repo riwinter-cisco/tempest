@@ -73,31 +73,25 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.addCleanup(self.cleanup_wrapper, self.security_group)
         self.servers = {}
 
-        self.network1, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
-        for r in [self.network1, self.router, self.subnet]:
+        self.network, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
+        for r in [self.network, self.router, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
-        self.network = self.network1
         self.check_networks()
 
         name = data_utils.rand_name('server-net1')
         serv_dict = self._create_server(name, self.network1)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-        LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
-        CONF.network.public_router_id = self.router.id
-        self.network2, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
-        for r in [self.network2, self.subnet]:
-            self.addCleanup(self.cleanup_wrapper, r)
-        self.network = self.network2
-        self.check_networks()
+        #LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
+        #CONF.network.public_router_id = self.router.id
+        #self.network2, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
+        #for r in [self.network2, self.subnet]:
+        #    self.addCleanup(self.cleanup_wrapper, r)
+        #self.network = self.network2
+        #self.check_networks()
 
-        name = data_utils.rand_name('server-net2')
-        LOG.debug("Attempting to bring up server {0}".format(name))
-        LOG.debug("   Network: {0}".format(self.network2))
-        serv_dict = self._create_server(name, self.network2)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
 
-        self._check_tenant_network_connectivity()
+        #self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
         LOG.debug("setUp: End")
 
@@ -164,6 +158,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 {'net-id': network.id},
             ],
             'key_name': keypair.name,
+            'security_groups': security_groups,
         }
         server = self.create_server(name=name, create_kwargs=create_kwargs)
         self.addCleanup(self.cleanup_wrapper, server)
@@ -260,12 +255,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         x = stdin.read(1)
 
         LOG.debug("Servers: {0}".format(self.servers))
-        LOG.debug("Check Network Internal Connectivity for Network1: Start")
-        self._check_network_internal_connectivity(self.network1)
-        LOG.debug("Check Network Internal Connectivity for Network1: End")
-        LOG.debug("Check Network Internal Connectivity for Network2: Start")
-        self._check_network_internal_connectivity(self.network2)
-        LOG.debug("Check Network Internal Connectivity for Network2: End")
+        LOG.debug("Check Network Internal Connectivity for Network: Start")
+        self._check_network_internal_connectivity(self.network)
+        LOG.debug("Check Network Internal Connectivity for Network: End")
         LOG.debug("Check Network External Connectivity: Start")
         self._check_network_external_connectivity()
         LOG.debug("Check Network External Connectivity: End")
