@@ -82,10 +82,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         serv_dict = self._create_server(name, self.network1)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-
-        self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr2')
-        self.addCleanup(self.cleanup_wrapper, self.security_group)
-
         LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
         CONF.network.public_router_id = self.router.id
         self.network2, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
@@ -94,18 +90,11 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.network = self.network2
         self.check_networks()
 
-        attempts = 0
-        while attempts <= 2:
-            name = data_utils.rand_name('server-net2')
-            LOG.debug("Attempting to bring up server {0}".format(name))
-            LOG.debug("   Network: {0}".format(self.network2))
-            try:
-                serv_dict = self._create_server(name, self.network2)
-                self.servers[serv_dict['server']] = serv_dict['keypair']
-                break
-            except exceptions.TimeoutException as e:
-                LOG.debug("Timed out waiting for server to become Active")
-                attempts += 1
+        name = data_utils.rand_name('server-net2')
+        LOG.debug("Attempting to bring up server {0}".format(name))
+        LOG.debug("   Network: {0}".format(self.network2))
+        serv_dict = self._create_server(name, self.network2)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
 
         self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
@@ -168,13 +157,12 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         keypair = self.create_keypair(name='keypair-%s' % name)
         self.addCleanup(self.cleanup_wrapper, keypair)
         security_groups = [self.security_group.name]
-
+        #'security_groups': security_groups,
         create_kwargs = {
             'nics': [
                 {'net-id': network.id},
             ],
             'key_name': keypair.name,
-            'security_groups': security_groups,
         }
         server = self.create_server(name=name, create_kwargs=create_kwargs)
         self.addCleanup(self.cleanup_wrapper, server)
