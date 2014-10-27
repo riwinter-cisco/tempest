@@ -71,7 +71,24 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
         self.addCleanup(self.cleanup_wrapper, self.security_group)
         self.servers = {}
-        
+        self.network, self.subnet, self.router = self._create_networks()
+        for r in [self.network, self.router, self.subnet]:
+            self.addCleanup(self.cleanup_wrapper, r)
+        self.check_networks()
+        name = data_utils.rand_name('server-net1')
+        serv_dict = self._create_server(name, self.network)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
+        self._check_tenant_network_connectivity()
+        self._create_and_associate_floating_ips()
+
+        self.network, self.subnet, self.router = self._create_networks()
+        for r in [self.network, self.router, self.subnet]:
+            self.addCleanup(self.cleanup_wrapper, r)
+        self.check_networks()
+        name = data_utils.rand_name('server-net2')
+        serv_dict = self._create_server(name, self.network)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
+        self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
         LOG.debug("setUp: End")
 
@@ -147,78 +164,10 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("    CIDR: {0}".format(subnet['cidr']))
             LOG.debug("===========================================")
 
-        ## Creating new network
-        self._create_new_network()
-        LOG.debug("New Network: {0}".format(self.new_net))
-        LOG.debug("New Subnet: {0}".format(self.new_subnet))
-
-        current_nets = self._list_networks()
-        for net in current_nets:
-            LOG.debug("===========================================")
-            LOG.debug("Network:  {0}".format(net['name']))
-            LOG.debug("  Status: {0}".format(net['status']))
-            LOG.debug("  Provider Seg ID: {0}".format(net['provider:segmentation_id']))
-            LOG.debug("  Subnets:{0}".format((net['subnets'])))
-            subnet = self._list_subnets(id=net['subnets'].pop()).pop()
-            LOG.debug("   Subnet: {0}".format(subnet['name']))
-            LOG.debug("    CIDR: {0}".format(subnet['cidr']))
-            LOG.debug("===========================================")
-
-        ## Create a VM on the network
-        svr_name = data_utils.rand_name('server-tvm')
-        LOG.debug("Server name: {0}".format(svr_name))
-        serv_dict = self._create_server(svr_name, self.new_net)
-
-        LOG.debug("Server dictionary:  {0}".format(serv_dict))
-        LOG.debug("           Server:  {0}".format(serv_dict['server']))
-        LOG.debug("         Key pair:  {0}".format(serv_dict['keypair']))
-        self.servers[serv_dict['server']] = serv_dict['keypair']
-
-        self._check_network_internal_connectivity(self.new_net)
-
-        ## Creating another network
-        self._create_new_network()
-        LOG.debug("New Network: {0}".format(self.new_net))
-        LOG.debug("New Subnet: {0}".format(self.new_subnet))
-
-        current_nets = self._list_networks()
-        for net in current_nets:
-            LOG.debug("===========================================")
-            LOG.debug("Network:  {0}".format(net['name']))
-            LOG.debug("  Status: {0}".format(net['status']))
-            LOG.debug("  Provider Seg ID: {0}".format(net['provider:segmentation_id']))
-            LOG.debug("  Subnets:{0}".format((net['subnets'])))
-            subnet = self._list_subnets(id=net['subnets'].pop()).pop()
-            LOG.debug("   Subnet: {0}".format(subnet['name']))
-            LOG.debug("    CIDR: {0}".format(subnet['cidr']))
-            LOG.debug("===========================================")
-
-
-        ## Create a 2nd VM on the network
-        serv_dict = {}
-        attempts = 0
-        while attempts <= 2:
-            LOG.debug("Brining up server attempt number {0}".format(attempts))
-            svr_name = data_utils.rand_name('server-tvm')
-            LOG.debug("Server name: {0}".format(svr_name))
-            LOG.debug("Network: {0}".format(self.new_net))
-            try:
-                serv_dict = self._create_server(svr_name, self.new_net)
-                LOG.debug("Server created")
-                break
-            except exceptions.TimeoutException as e:
-                LOG.debug("Timed out bringing up server: {0}".format(e))
-                attempts += 1
-
-        ## Check server status - should be Active
-
-        LOG.debug("Server dictionary:  {0}".format(serv_dict))
-        LOG.debug("           Server:  {0}".format(serv_dict['server']))
-        LOG.debug("         Key pair:  {0}".format(serv_dict['keypair']))
-        self.servers[serv_dict['server']] = serv_dict['keypair']
 
         LOG.debug("Servers: {0}".format(self.servers))
-        self._check_network_internal_connectivity(self.new_net)
+
+        #self._check_network_internal_connectivity(self.new_net)
         #self._check_public_network_connectivity(should_connect=True)
 
         LOG.debug("test_csr_one_net: End")
