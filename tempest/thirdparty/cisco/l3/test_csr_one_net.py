@@ -22,6 +22,7 @@ from tempest import config
 from tempest.openstack.common import log as logging
 from tempest.scenario import manager
 from tempest import test
+from tempest import exceptions
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
@@ -161,6 +162,8 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("         Key pair:  {0}".format(serv_dict['keypair']))
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
+        self._check_network_internal_connectivity(self.new_net)
+
         ## Creating another network
         self._create_new_network()
         LOG.debug("New Network: {0}".format(self.new_net))
@@ -180,15 +183,30 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
 
         ## Create a 2nd VM on the network
-        svr_name = data_utils.rand_name('server-tvm')
-        serv_dict = self._create_server(svr_name, self.new_net)
+        serv_dict = {}
+        attempts = 0
+        while attempts <= 2:
+            LOG.debug("Brining up server attempt number {0}".format(attempts))
+            svr_name = data_utils.rand_name('server-tvm')
+            LOG.debug("Server name: {0}".format(svr_name))
+            LOG.debug("Network: {0}".format(self.new_net))
+            try:
+                serv_dict = self._create_server(svr_name, self.new_net)
+                LOG.debug("Server created")
+                break
+            except exceptions.TimeoutException as e:
+                LOG.debug("Timed out bringing up server: {0}".format(e))
+                attempts += 1
+
+        ## Check server status - should be Active
+
         LOG.debug("Server dictionary:  {0}".format(serv_dict))
         LOG.debug("           Server:  {0}".format(serv_dict['server']))
         LOG.debug("         Key pair:  {0}".format(serv_dict['keypair']))
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
         LOG.debug("Servers: {0}".format(self.servers))
-        self._check_network_internal_connectivity()
+        self._check_network_internal_connectivity(self.new_net)
         #self._check_public_network_connectivity(should_connect=True)
 
         LOG.debug("test_csr_one_net: End")
