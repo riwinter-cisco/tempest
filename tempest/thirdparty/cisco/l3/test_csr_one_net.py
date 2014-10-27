@@ -91,24 +91,29 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         #self.check_networks()
 
 
-        #self._check_tenant_network_connectivity()
+        self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
         LOG.debug("setUp: End")
 
     def _check_tenant_network_connectivity(self):
+        LOG.debug("_check_tenant_network_connectivity: Start")
         ssh_login = CONF.compute.image_ssh_user
+        LOG.debug("SSH Login: {0}".format(ssh_login))
         for server, key in self.servers.iteritems():
+            LOG.debug("Server {0}, key {1}".format(server, key))
             # call the common method in the parent class
             super(TestCSROneNet, self).\
                 _check_tenant_network_connectivity(
                     server, ssh_login, key.private_key,
                     servers_for_debug=self.servers.keys())
+        LOG.debug("_check_tenant_network_connectivity: End")
 
     def check_networks(self):
         """
         Checks that we see the newly created network/subnet/router via
         checking the result of list_[networks,routers,subnets]
         """
+        LOG.debug("check_networks: Start")
         seen_nets = self._list_networks()
         seen_names = [n['name'] for n in seen_nets]
         seen_ids = [n['id'] for n in seen_nets]
@@ -128,13 +133,16 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                       seen_router_names)
         self.assertIn(self.router.id,
                       seen_router_ids)
+        LOG.debug("check_networks: End")
 
     def _create_and_associate_floating_ips(self):
+        LOG.debug("_create_and_associate_floating_ips: Start")
         public_network_id = CONF.network.public_network_id
         for server in self.servers.keys():
             floating_ip = self._create_floating_ip(server, public_network_id)
             self.floating_ip_tuple = Floating_IP_tuple(floating_ip, server)
             self.addCleanup(self.cleanup_wrapper, floating_ip)
+        LOG.debug("_create_and_associate_floating_ips: End")
 
     def _create_new_network(self):
         LOG.debug("_create_new_network: Start")
@@ -158,7 +166,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 {'net-id': network.id},
             ],
             'key_name': keypair.name,
-            'security_groups': security_groups,
         }
         server = self.create_server(name=name, create_kwargs=create_kwargs)
         self.addCleanup(self.cleanup_wrapper, server)
@@ -171,6 +178,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         - ping internal gateway and DHCP port, implying in-tenant connectivity
         pinging both, because L3 and DHCP agents might be on different nodes
         """
+        LOG.debug("_check_network_internal_connectivity: Start")
         floating_ip, server = self.floating_ip_tuple
         # get internal ports' ips:
         # get all network ports in the new network
@@ -178,14 +186,19 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                         self._list_ports(tenant_id=server.tenant_id,
                                          network_id=network.id)
                         if p['device_owner'].startswith('network'))
-
+        LOG.debug("Checking server : {0}".format(server))
+        LOG.debug("    Network     : {0}".format(network))
+        LOG.debug("    Floating IP : {0}".format(floating_ip))
+        LOG.debug("    Internal IPs: {0}".format(internal_ips))
         self._check_server_connectivity(floating_ip, internal_ips)
+        LOG.debug("_check_network_internal_connectivity: End")
 
     def _check_network_external_connectivity(self):
         """
         ping public network default gateway to imply external connectivity
 
         """
+        LOG.debug("_check_network_external_connectivity: Start")
         if not CONF.network.public_network_id:
             msg = 'public network not defined.'
             LOG.info(msg)
@@ -196,15 +209,23 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.assertEqual(1, len(subnet), "Found %d subnets" % len(subnet))
 
         external_ips = [subnet[0]['gateway_ip']]
+
+        LOG.debug("External IPs: {0}".format(external_ips))
+        LOG.debug("Floating IP : {0}".format(self.floating_ip_tuple.floating_ip))
         self._check_server_connectivity(self.floating_ip_tuple.floating_ip,
                                         external_ips)
+        LOG.debug("_check_network_external_connectivity: End")
 
     def _check_server_connectivity(self, floating_ip, address_list):
+        LOG.debug("_check_server_connectivity: Start")
         ip_address = floating_ip.floating_ip_address
         private_key = self.servers[self.floating_ip_tuple.server].private_key
         ssh_source = self._ssh_to_server(ip_address, private_key)
-
+        LOG.debug(" IP Address : {0}".format(ip_address))
+        LOG.debug(" Private Key: {0}".format(private_key))
+        LOG.debug(" SSH Source : {0}".format(ssh_source))
         for remote_ip in address_list:
+            LOG.debug("Checking remote IP: {0}".format(remote_ip))
             try:
                 self.assertTrue(self._check_remote_connectivity(ssh_source,
                                                                 remote_ip),
@@ -216,12 +237,16 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                                                          src=floating_ip))
                 debug.log_ip_ns()
                 raise
+        LOG.debug("_check_server_connectivity: Start")
 
-    def _check_public_network_connectivity(self, should_connect=True,
-                                           msg=None):
+    def _check_public_network_connectivity(self, should_connect=True, msg=None):
+        LOG.debug("_check_public_network_connectivity: Start")
         ssh_login = CONF.compute.image_ssh_user
         floating_ip, server = self.floating_ip_tuple
         ip_address = floating_ip.floating_ip_address
+        LOG.debug("ssh_login  : {0}".format(ssh_login))
+        LOG.debug("floating ip: {0}".format(floating_ip))
+        LOG.debug("IP Address : {0}".format(ip_address))
         private_key = None
         if should_connect:
             private_key = self.servers[server].private_key
@@ -229,6 +254,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         super(TestCSROneNet, self)._check_public_network_connectivity(
             ip_address, ssh_login, private_key, should_connect, msg,
             self.servers.keys())
+        LOG.debug("_check_public_network_connectivity: End")
 
     def test_csr_one_net(self):
 
