@@ -74,7 +74,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.network1, self.subnet, self.router = self._create_networks()
         for r in [self.network1, self.router, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
-        self.check_networks()
+        self.check_network(network=self.network1)
         name = data_utils.rand_name('server-net1')
         serv_dict = self._create_server(name, self.network1)
         self.servers[serv_dict['server']] = serv_dict['keypair']
@@ -82,7 +82,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.network2, self.subnet, self.router = self._create_networks()
         for r in [self.network2, self.router, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
-        self.check_networks()
+        self.check_network(network=self.network2)
 
         attempts = 0
         while attempts <= 2:
@@ -110,7 +110,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                     server, ssh_login, key.private_key,
                     servers_for_debug=self.servers.keys())
 
-    def check_networks(self):
+    def check_network(self, network):
         """
         Checks that we see the newly created network/subnet/router via
         checking the result of list_[networks,routers,subnets]
