@@ -92,6 +92,32 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self._create_and_associate_floating_ips()
         LOG.debug("setUp: End")
 
+
+    def check_networks(self):
+        """
+        Checks that we see the newly created network/subnet/router via
+        checking the result of list_[networks,routers,subnets]
+        """
+        seen_nets = self._list_networks()
+        seen_names = [n['name'] for n in seen_nets]
+        seen_ids = [n['id'] for n in seen_nets]
+        self.assertIn(self.network.name, seen_names)
+        self.assertIn(self.network.id, seen_ids)
+
+        seen_subnets = self._list_subnets()
+        seen_net_ids = [n['network_id'] for n in seen_subnets]
+        seen_subnet_ids = [n['id'] for n in seen_subnets]
+        self.assertIn(self.network.id, seen_net_ids)
+        self.assertIn(self.subnet.id, seen_subnet_ids)
+
+        seen_routers = self._list_routers()
+        seen_router_ids = [n['id'] for n in seen_routers]
+        seen_router_names = [n['name'] for n in seen_routers]
+        self.assertIn(self.router.name,
+                      seen_router_names)
+        self.assertIn(self.router.id,
+                      seen_router_ids)
+
     def _create_and_associate_floating_ips(self):
         public_network_id = CONF.network.public_network_id
         for server in self.servers.keys():
