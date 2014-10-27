@@ -114,7 +114,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                     server, ssh_login, key.private_key,
                     servers_for_debug=self.servers.keys())
 
-    def check_networks(self, network):
+    def check_networks(self):
         """
         Checks that we see the newly created network/subnet/router via
         checking the result of list_[networks,routers,subnets]
