@@ -92,6 +92,14 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self._create_and_associate_floating_ips()
         LOG.debug("setUp: End")
 
+    def _check_tenant_network_connectivity(self):
+        ssh_login = CONF.compute.image_ssh_user
+        for server, key in self.servers.iteritems():
+            # call the common method in the parent class
+            super(TestCSROneNet, self).\
+                _check_tenant_network_connectivity(
+                    server, ssh_login, key.private_key,
+                    servers_for_debug=self.servers.keys())
 
     def check_networks(self):
         """
