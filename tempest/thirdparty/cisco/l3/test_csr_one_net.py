@@ -27,6 +27,9 @@ from tempest import exceptions
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
+Floating_IP_tuple = collections.namedtuple('Floating_IP_tuple',
+                                           ['floating_ip', 'server'])
+
 
 class TestCSROneNet(manager.NetworkScenarioTest):
 
@@ -68,7 +71,16 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
         self.addCleanup(self.cleanup_wrapper, self.security_group)
         self.servers = {}
+        
+        self._create_and_associate_floating_ips()
         LOG.debug("setUp: End")
+
+    def _create_and_associate_floating_ips(self):
+        public_network_id = CONF.network.public_network_id
+        for server in self.servers.keys():
+            floating_ip = self._create_floating_ip(server, public_network_id)
+            self.floating_ip_tuple = Floating_IP_tuple(floating_ip, server)
+            self.addCleanup(self.cleanup_wrapper, floating_ip)
 
     def _create_new_network(self):
         LOG.debug("_create_new_network: Start")
