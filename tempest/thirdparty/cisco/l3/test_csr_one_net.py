@@ -68,7 +68,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
     def setUp(self):
         super(TestCSROneNet, self).setUp()
         LOG.debug("setUp: Start")
-        self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
+        self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr1')
         self.addCleanup(self.cleanup_wrapper, self.security_group)
         self.servers = {}
 
@@ -81,6 +81,10 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         name = data_utils.rand_name('server-net1')
         serv_dict = self._create_server(name, self.network1)
         self.servers[serv_dict['server']] = serv_dict['keypair']
+
+
+        self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr2')
+        self.addCleanup(self.cleanup_wrapper, self.security_group)
 
         LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
         CONF.network.public_router_id = self.router.id
