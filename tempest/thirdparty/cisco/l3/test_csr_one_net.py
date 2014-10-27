@@ -72,7 +72,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.addCleanup(self.cleanup_wrapper, self.security_group)
         self.servers = {}
 
-        self.network1, self.subnet, self.router = self._create_networks()
+        self.network1, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
         for r in [self.network1, self.router, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
         self.network = self.network1
@@ -82,7 +82,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         serv_dict = self._create_server(name, self.network1)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-        self.network2, self.subnet, self.router = self._create_networks()
+        LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
+        CONF.network.public_router_id = self.router.id
+        self.network2, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
         for r in [self.network2, self.router, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
         self.network = self.network2
@@ -226,6 +228,19 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                                                          src=floating_ip))
                 debug.log_ip_ns()
                 raise
+
+    def _check_public_network_connectivity(self, should_connect=True,
+                                           msg=None):
+        ssh_login = CONF.compute.image_ssh_user
+        floating_ip, server = self.floating_ip_tuple
+        ip_address = floating_ip.floating_ip_address
+        private_key = None
+        if should_connect:
+            private_key = self.servers[server].private_key
+        # call the common method in the parent class
+        super(TestCSROneNet, self)._check_public_network_connectivity(
+            ip_address, ssh_login, private_key, should_connect, msg,
+            self.servers.keys())
 
     def test_csr_one_net(self):
 
