@@ -60,9 +60,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 raise cls.skipException(msg)
         cls.check_preconditions()
         LOG.debug("setUpClass: End")
-    
-    def addCleanup(self, function, *arguments, **keywordArguments):
-        pass
 
     def cleanup_wrapper(self, resource):
         self.cleanup_resource(resource, self.__class__.__name__)
@@ -72,12 +69,12 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         super(TestCSROneNet, self).setUp()
         LOG.debug("setUp: Start")
         self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr1')
-        self.addCleanup(self.cleanup_wrapper, self.security_group)
+        #self.addCleanup(self.cleanup_wrapper, self.security_group)
         self.servers = {}
 
         self.network1, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
-        for r in [self.network1, self.router, self.subnet]:
-            self.addCleanup(self.cleanup_wrapper, r)
+        #for r in [self.network1, self.router, self.subnet]:
+        #    self.addCleanup(self.cleanup_wrapper, r)
         self.network = self.network1
         self.check_networks()
 
@@ -88,8 +85,8 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
         CONF.network.public_router_id = self.router.id
         self.network2, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
-        for r in [self.network2, self.subnet]:
-            self.addCleanup(self.cleanup_wrapper, r)
+        #for r in [self.network2, self.subnet]:
+        #    self.addCleanup(self.cleanup_wrapper, r)
         self.network = self.network2
         self.check_networks()
 
@@ -142,23 +139,23 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         for server in self.servers.keys():
             floating_ip = self._create_floating_ip(server, public_network_id)
             self.floating_ip_tuple = Floating_IP_tuple(floating_ip, server)
-            self.addCleanup(self.cleanup_wrapper, floating_ip)
+            #self.addCleanup(self.cleanup_wrapper, floating_ip)
 
     def _create_new_network(self):
         LOG.debug("_create_new_network: Start")
         self.new_net = self._create_network(self.tenant_id)
-        self.addCleanup(self.cleanup_wrapper, self.new_net)
+        #self.addCleanup(self.cleanup_wrapper, self.new_net)
         self.new_subnet = self._create_subnet(
             network=self.new_net,
             namestart='csr-smoke',
             gateway_ip=None)
-        self.addCleanup(self.cleanup_wrapper, self.new_subnet)
+        #self.addCleanup(self.cleanup_wrapper, self.new_subnet)
         LOG.debug("_create_new_network: End")
 
     def _create_server(self, name, network):
         LOG.debug("_create_server: Start")
         keypair = self.create_keypair(name='keypair-%s' % name)
-        self.addCleanup(self.cleanup_wrapper, keypair)
+        #self.addCleanup(self.cleanup_wrapper, keypair)
         security_groups = [self.security_group.name]
         #'security_groups': security_groups,
         create_kwargs = {
@@ -168,7 +165,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             'key_name': keypair.name,
         }
         server = self.create_server(name=name, create_kwargs=create_kwargs)
-        self.addCleanup(self.cleanup_wrapper, server)
+        #self.addCleanup(self.cleanup_wrapper, server)
         LOG.debug("_create_server: End")
         return dict(server=server, keypair=keypair)
 
