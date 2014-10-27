@@ -85,7 +85,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
         CONF.network.public_router_id = self.router.id
         self.network2, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
-        for r in [self.network2, self.router, self.subnet]:
+        for r in [self.network2, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
         self.network = self.network2
         self.check_networks()
