@@ -84,10 +84,11 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             self.addCleanup(self.cleanup_wrapper, r)
         self.check_networks()
 
-        serv_dict = {}
         attempts = 0
         while attempts <= 2:
             name = data_utils.rand_name('server-net2')
+            LOG.debug("Attempting to bring up server {0}".format(name))
+            LOG.debug("   Network: {0}".format(self.network))
             try:
                 serv_dict = self._create_server(name, self.network)
                 self.servers[serv_dict['server']] = serv_dict['keypair']
@@ -208,9 +209,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
 
         LOG.debug("Servers: {0}".format(self.servers))
-
-        #self._check_network_internal_connectivity(self.new_net)
-        #self._check_public_network_connectivity(should_connect=True)
+        self._check_public_network_connectivity(should_connect=True)
 
         LOG.debug("test_csr_one_net: End")
 
