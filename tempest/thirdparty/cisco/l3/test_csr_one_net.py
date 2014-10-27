@@ -79,7 +79,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.check_networks()
 
         name = data_utils.rand_name('server-net1')
-        serv_dict = self._create_server(name, self.network1)
+        serv_dict = self._create_server(name, self.network)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
         #LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
