@@ -60,9 +60,12 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 raise cls.skipException(msg)
         cls.check_preconditions()
         LOG.debug("setUpClass: End")
+    
+    def addCleanup(self, function, *arguments, **keywordArguments):
+        pass
 
     def cleanup_wrapper(self, resource):
-        #self.cleanup_resource(resource, self.__class__.__name__)
+        self.cleanup_resource(resource, self.__class__.__name__)
         LOG.debug("cleanup_wrapper")
 
     def setUp(self):
