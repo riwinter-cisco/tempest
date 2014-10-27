@@ -250,9 +250,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("    CIDR: {0}".format(subnet['cidr']))
             LOG.debug("===========================================")
 
-        LOG.debug("=============================== Input > ")
-        print("*********************************** Input >")
-        x = stdin.read(1)
 
         LOG.debug("Servers: {0}".format(self.servers))
         LOG.debug("Check Network Internal Connectivity for Network: Start")
