@@ -263,9 +263,17 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("===========================================")
 
         LOG.debug("Servers: {0}".format(self.servers))
+        LOG.debug("Check Public Network Connectivity: Start")
         self._check_public_network_connectivity(should_connect=True)
+        LOG.debug("Check Public Network Connectivity: End")
+        LOG.debug("Check Network Internal Connectivity for Network1: Start")
         self._check_network_internal_connectivity(self.network1)
+        LOG.debug("Check Network Internal Connectivity for Network1: End")
+        LOG.debug("Check Network Internal Connectivity for Network2: Start")
         self._check_network_internal_connectivity(self.network2)
+        LOG.debug("Check Network Internal Connectivity for Network2: End")
+        LOG.debug("Check Network External Connectivity: Start")
         self._check_network_external_connectivity()
+        LOG.debug("Check Network External Connectivity: End")
         LOG.debug("test_csr_one_net: End")
 
