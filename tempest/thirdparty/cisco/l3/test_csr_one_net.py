@@ -71,16 +71,16 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id, namestart='csr')
         self.addCleanup(self.cleanup_wrapper, self.security_group)
         self.servers = {}
-        self.network, self.subnet, self.router = self._create_networks()
-        for r in [self.network, self.router, self.subnet]:
+        self.network1, self.subnet, self.router = self._create_networks()
+        for r in [self.network1, self.router, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
         self.check_networks()
         name = data_utils.rand_name('server-net1')
-        serv_dict = self._create_server(name, self.network)
+        serv_dict = self._create_server(name, self.network1)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-        self.network, self.subnet, self.router = self._create_networks()
-        for r in [self.network, self.router, self.subnet]:
+        self.network2, self.subnet, self.router = self._create_networks()
+        for r in [self.network2, self.router, self.subnet]:
             self.addCleanup(self.cleanup_wrapper, r)
         self.check_networks()
 
@@ -88,9 +88,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         while attempts <= 2:
             name = data_utils.rand_name('server-net2')
             LOG.debug("Attempting to bring up server {0}".format(name))
-            LOG.debug("   Network: {0}".format(self.network))
+            LOG.debug("   Network: {0}".format(self.network2))
             try:
-                serv_dict = self._create_server(name, self.network)
+                serv_dict = self._create_server(name, self.network2)
                 self.servers[serv_dict['server']] = serv_dict['keypair']
                 break
             except exceptions.TimeoutException as e:
@@ -207,9 +207,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("    CIDR: {0}".format(subnet['cidr']))
             LOG.debug("===========================================")
 
-
         LOG.debug("Servers: {0}".format(self.servers))
-        self._check_public_network_connectivity(should_connect=True)
+        self._check_network_internal_connectivity(self, self.network1)
+        self._check_network_internal_connectivity(self, self.network2)
 
         LOG.debug("test_csr_one_net: End")
 
