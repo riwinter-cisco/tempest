@@ -78,8 +78,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         name = data_utils.rand_name('server-net1')
         serv_dict = self._create_server(name, self.network)
         self.servers[serv_dict['server']] = serv_dict['keypair']
-        self._check_tenant_network_connectivity()
-        self._create_and_associate_floating_ips()
 
         self.network, self.subnet, self.router = self._create_networks()
         for r in [self.network, self.router, self.subnet]:
@@ -97,7 +95,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             except exceptions.TimeoutException as e:
                 LOG.debug("Timed out waiting for server to become Active")
                 attempts += 1
-                
+
         self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
         LOG.debug("setUp: End")
