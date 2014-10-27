@@ -191,6 +191,42 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         self._check_server_connectivity(floating_ip, internal_ips)
 
+    def _check_network_external_connectivity(self):
+        """
+        ping public network default gateway to imply external connectivity
+
+        """
+        if not CONF.network.public_network_id:
+            msg = 'public network not defined.'
+            LOG.info(msg)
+            return
+
+        subnet = self.network_client.list_subnets(
+            network_id=CONF.network.public_network_id)['subnets']
+        self.assertEqual(1, len(subnet), "Found %d subnets" % len(subnet))
+
+        external_ips = [subnet[0]['gateway_ip']]
+        self._check_server_connectivity(self.floating_ip_tuple.floating_ip,
+                                        external_ips)
+
+    def _check_server_connectivity(self, floating_ip, address_list):
+        ip_address = floating_ip.floating_ip_address
+        private_key = self.servers[self.floating_ip_tuple.server].private_key
+        ssh_source = self._ssh_to_server(ip_address, private_key)
+
+        for remote_ip in address_list:
+            try:
+                self.assertTrue(self._check_remote_connectivity(ssh_source,
+                                                                remote_ip),
+                                "Timed out waiting for %s to become "
+                                "reachable" % remote_ip)
+            except Exception:
+                LOG.exception("Unable to access {dest} via ssh to "
+                              "floating-ip {src}".format(dest=remote_ip,
+                                                         src=floating_ip))
+                debug.log_ip_ns()
+                raise
+
     def test_csr_one_net(self):
 
         LOG.debug("test_csr_one_net: Start")
@@ -212,8 +248,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("===========================================")
 
         LOG.debug("Servers: {0}".format(self.servers))
+        self._check_public_network_connectivity(should_connect=True)
         self._check_network_internal_connectivity(self.network1)
         self._check_network_internal_connectivity(self.network2)
-
+        self._check_network_external_connectivity()
         LOG.debug("test_csr_one_net: End")
 
