@@ -282,10 +282,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             network_id=CONF.network.public_network_id)['subnets']
 
         external_ips = [subnet[0]['gateway_ip']]
-        LOG.debug("External IPs: {0}".format(external_ips))
+        LOG.debug("External IPs: {0}".format(external_ips[0]))
 
-
-        gw = "172.29.75.225"
+        gw = external_ips[0]
         LOG.debug("Pinging GW: {0}".format(gw))
         ping_result = self._ping_ip_address(gw)
         LOG.debug("Ping result : {0}".format(ping_result))
