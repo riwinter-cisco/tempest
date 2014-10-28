@@ -82,9 +82,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         serv_dict = self._create_server(name, self.network)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-        name = data_utils.rand_name('server')
-        serv_dict = self._create_server(name, self.network)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
+        #name = data_utils.rand_name('server')
+        #serv_dict = self._create_server(name, self.network)
+        #self.servers[serv_dict['server']] = serv_dict['keypair']
 
         self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
