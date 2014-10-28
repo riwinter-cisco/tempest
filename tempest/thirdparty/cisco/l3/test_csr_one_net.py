@@ -278,8 +278,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         floating_ip, server = self.floating_ip_tuple
         LOG.debug("Floating IP: {0}".format(floating_ip.floating_ip_address))
 
-        
-        self._ping_ip_address(floating_ip.floating_ip_address)
+        LOG.debug("Pinging floating IP:")
+        ping_result = self._ping_ip_address(floating_ip.floating_ip_address)
+        LOG.debug("Ping result : {0}".format(ping_result))
 
         #self._check_network_internal_connectivity(self.network)
         LOG.debug("Check Network Internal Connectivity for Network: End")
