@@ -278,6 +278,11 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         floating_ip, server = self.floating_ip_tuple
         LOG.debug("Floating IP: {0}".format(floating_ip.floating_ip_address))
 
+        gw = "172.29.75.225"
+        LOG.debug("Pinging GW: {0}".format(gw))
+        ping_result = self._ping_ip_address(gw)
+        LOG.debug("Ping result : {0}".format(ping_result))
+
         LOG.debug("Pinging floating IP:")
         ping_result = self._ping_ip_address(floating_ip.floating_ip_address)
         LOG.debug("Ping result : {0}".format(ping_result))
