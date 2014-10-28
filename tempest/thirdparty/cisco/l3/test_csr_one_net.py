@@ -14,6 +14,7 @@
 import collections
 
 import re
+import time
 
 from sys import stdin
 from tempest.api.network import common as net_common
@@ -290,6 +291,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("Ping result : {0}".format(ping_result))
         self.assertTrue(ping_result, "Ping of gw {0} failed".format(gw))
 
+        time.sleep(60)
         LOG.debug("Pinging floating IP ")
         ping_result1 = self._ping_ip_address(floating_ip.floating_ip_address)
         LOG.debug("Ping result : {0}".format(ping_result1))
