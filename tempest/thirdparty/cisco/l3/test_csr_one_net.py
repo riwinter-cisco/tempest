@@ -293,8 +293,12 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         time.sleep(60)
         LOG.debug("Pinging floating IP ")
-        ping_result1 = self._ping_ip_address(floating_ip.floating_ip_address)
-        LOG.debug("Ping result : {0}".format(ping_result1))
+        ping_result1 = False
+        for i in range(0, 40):
+            ping_result1 = self._ping_ip_address(floating_ip.floating_ip_address)
+            LOG.debug("Ping result : {0}".format(ping_result1))
+            time.sleep(3)
+            
         self.assertTrue(ping_result1,
                         "Ping of floating IP {0} failed".format(floating_ip.floating_ip_address))
 
