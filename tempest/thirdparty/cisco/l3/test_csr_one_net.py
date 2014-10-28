@@ -288,10 +288,13 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         LOG.debug("Pinging GW: {0}".format(gw))
         ping_result = self._ping_ip_address(gw)
         LOG.debug("Ping result : {0}".format(ping_result))
+        self.assertTrue(ping_result, "Ping of gw {0} failed".format(gw))
 
         LOG.debug("Pinging floating IP ")
         ping_result1 = self._ping_ip_address(floating_ip.floating_ip_address)
         LOG.debug("Ping result : {0}".format(ping_result1))
+        self.assertTrue(ping_result1,
+                        "Ping of floating IP {0} failed".format(floating_ip.floating_ip_address))
 
         #self._check_network_internal_connectivity(self.network)
         LOG.debug("Check Network Internal Connectivity for Network: End")
