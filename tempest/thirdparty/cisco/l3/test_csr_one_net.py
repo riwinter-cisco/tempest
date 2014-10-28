@@ -272,10 +272,14 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("    CIDR: {0}".format(subnet['cidr']))
             LOG.debug("===========================================")
 
-
         LOG.debug("Servers: {0}".format(self.servers))
         LOG.debug("Check Network Internal Connectivity for Network: Start")
-        self._check_network_internal_connectivity(self.network)
+        LOG.debug("Floating IP Tuple: {0}".format(self.floating_ip_tuple))
+        floating_ip, server = self.floating_ip_tuple
+        LOG.debug("Floating IP: {0}".format(floating_ip))
+        self._ping_ip_address(floating_ip)
+
+        #self._check_network_internal_connectivity(self.network)
         LOG.debug("Check Network Internal Connectivity for Network: End")
         LOG.debug("Check Network External Connectivity: Start")
         #self._check_network_external_connectivity()
