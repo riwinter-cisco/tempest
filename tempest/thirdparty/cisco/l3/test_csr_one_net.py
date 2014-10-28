@@ -298,12 +298,13 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             try:
                 ping_result = self._ping_ip_address(floating_ip.floating_ip_address)
                 LOG.debug("Ping result : {0}".format(ping_result))
+                time.sleep(2)
                 if ping_result is True:
                     break
             except exceptions.TimeoutException as e:
                 pass
 
-            time.sleep(2)
+
 
         self.assertTrue(ping_result,
                         "Ping of floating IP {0} failed".format(floating_ip.floating_ip_address))
