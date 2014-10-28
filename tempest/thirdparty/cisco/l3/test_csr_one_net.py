@@ -234,7 +234,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                                                          src=floating_ip))
                 debug.log_ip_ns()
                 raise
-        LOG.debug("_check_server_connectivity: Start")
+        LOG.debug("_check_server_connectivity: End")
 
     def _check_public_network_connectivity(self, should_connect=True, msg=None):
         LOG.debug("_check_public_network_connectivity: Start")
@@ -311,10 +311,10 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self._check_network_internal_connectivity(self.network)
         LOG.debug("Check Network Internal Connectivity for Network: End")
         LOG.debug("Check Network External Connectivity: Start")
-        #self._check_network_external_connectivity()
+        self._check_network_external_connectivity()
         LOG.debug("Check Network External Connectivity: End")
         LOG.debug("Check Public Network Connectivity: Start")
-        #self._check_public_network_connectivity(should_connect=True)
+        self._check_public_network_connectivity(should_connect=True)
         LOG.debug("Check Public Network Connectivity: End")
         LOG.debug("test_csr_one_net: End")
 
