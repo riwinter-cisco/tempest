@@ -78,17 +78,13 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             self.addCleanup(self.cleanup_wrapper, r)
         self.check_networks()
 
-        name = data_utils.rand_name('server-net1')
+        name = data_utils.rand_name('server1-net1')
         serv_dict = self._create_server(name, self.network)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-        #LOG.debug("Router {0} ID is {1}".format(self.router, self.router.id))
-        #CONF.network.public_router_id = self.router.id
-        #self.network2, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
-        #for r in [self.network2, self.subnet]:
-        #    self.addCleanup(self.cleanup_wrapper, r)
-        #self.network = self.network2
-        #self.check_networks()
+        name = data_utils.rand_name('server2-net1')
+        serv_dict = self._create_server(name, self.network)
+        self.servers[serv_dict['server']] = serv_dict['keypair']
 
         self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
