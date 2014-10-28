@@ -275,7 +275,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         LOG.debug("Servers: {0}".format(self.servers))
         LOG.debug("Check Network Internal Connectivity for Network: Start")
-        #self._check_network_internal_connectivity(self.network)
+        self._check_network_internal_connectivity(self.network)
         LOG.debug("Check Network Internal Connectivity for Network: End")
         LOG.debug("Check Network External Connectivity: Start")
         #self._check_network_external_connectivity()
