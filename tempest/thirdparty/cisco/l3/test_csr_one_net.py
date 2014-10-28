@@ -78,11 +78,11 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             self.addCleanup(self.cleanup_wrapper, r)
         self.check_networks()
 
-        name = data_utils.rand_name('server1-net1')
+        name = data_utils.rand_name('server')
         serv_dict = self._create_server(name, self.network)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
-        name = data_utils.rand_name('server2-net1')
+        name = data_utils.rand_name('server')
         serv_dict = self._create_server(name, self.network)
         self.servers[serv_dict['server']] = serv_dict['keypair']
 
@@ -155,12 +155,13 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         keypair = self.create_keypair(name='keypair-%s' % name)
         self.addCleanup(self.cleanup_wrapper, keypair)
         security_groups = [self.security_group.name]
-        #'security_groups': security_groups,
+
         create_kwargs = {
             'nics': [
                 {'net-id': network.id},
             ],
             'key_name': keypair.name,
+            'security_groups': security_groups,
         }
         server = self.create_server(name=name, create_kwargs=create_kwargs)
         self.addCleanup(self.cleanup_wrapper, server)
