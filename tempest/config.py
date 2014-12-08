@@ -991,6 +991,37 @@ NegativeGroup = [
                help="Test generator class for all negative tests"),
 ]
 
+cisco_group = cfg.OptGroup(name='cisco', title='Cisco Test Options')
+
+CiscoGroup = [
+    cfg.StrOpt('vsm_ip',
+               default=None,
+               help='The management IP address of the VSM'),
+    cfg.StrOpt('vsm_username',
+               default='admin',
+               help='The username to use for login'),
+    cfg.StrOpt('vsm_password',
+               default='Sfish123',
+               help='The password to use for login'),
+    cfg.StrOpt('csr_ip',
+               default=None,
+               help='The management IP address of the router'),
+    cfg.StrOpt('csr_username',
+               default='stack',
+               help='The admin user for the CSR'),
+    cfg.StrOpt('csr_password',
+               default='cisco',
+               help='The password from the admin user'),
+    cfg.ListOpt('leaf_sws',
+                default=None,
+                help='A \':\' separated list of attributes about the lead switches in the test bed.  '\
+                     '[ip:user:pw:ssh-port]'),
+    cfg.ListOpt('leaf_sw_connections',
+                default=None,
+                help='A \':\' separated list of describing the connection between nodes and leaf switch. '\
+                     '[ip:compute-node:port]'),
+]
+
 
 def register_opts():
     register_opt_group(cfg.CONF, compute_group, ComputeGroup)
@@ -1028,6 +1059,7 @@ def register_opts():
     register_opt_group(cfg.CONF, input_scenario_group, InputScenarioGroup)
     register_opt_group(cfg.CONF, cli_group, CLIGroup)
     register_opt_group(cfg.CONF, negative_group, NegativeGroup)
+    register_opt_group(cfg.CONF, cisco_group, CiscoGroup)
 
 
 # this should never be called outside of this class
@@ -1070,6 +1102,7 @@ class TempestConfigPrivate(object):
         self.input_scenario = cfg.CONF['input-scenario']
         self.cli = cfg.CONF.cli
         self.negative = cfg.CONF.negative
+        self.cisco = cfg.CONF.cisco
         if not self.compute_admin.username:
             self.compute_admin.username = self.identity.admin_username
             self.compute_admin.password = self.identity.admin_password
