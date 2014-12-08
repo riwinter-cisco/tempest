@@ -85,8 +85,8 @@ class RemoteClient():
         cmd = 'sudo sh -c "echo \\"%s\\" >/dev/console"' % message
         return self.exec_command(cmd)
 
-    def ping_host(self, host):
-        cmd = 'ping -c1 -w1 %s' % host
+    def ping_host(self, host, count=1, size=56):
+        cmd = "ping -c{0} -s{1} {2}".format(count, size, host)
         return self.exec_command(cmd)
 
     def get_mac_address(self):
