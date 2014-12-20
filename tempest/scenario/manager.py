@@ -1168,8 +1168,7 @@ class NetworkScenarioTest(OfficialClientTest):
                         client=client, secgroup=secgroup, **ruleset)
                 except exc.NeutronClientException as ex:
                     # if rule already exist - skip rule and continue
-                    if not (ex.status_code is 409 and 'Security group rule'
-                            ' already exists' in ex.message):
+                    if not (ex.status_code == 409 and 'Security group rule already exists' in ex.message):
                         raise ex
                 else:
                     self.assertEqual(r_direction, sg_rule.direction)

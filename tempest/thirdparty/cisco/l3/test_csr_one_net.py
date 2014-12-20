@@ -145,7 +145,11 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         ## if there isn't a N1Kv vsm
         if not self.setup_has_cisco_n1kv:
             self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id)
-            self._create_loginable_secgroup_rule_neutron(secgroup=self.security_group)
+            try:
+                self._create_loginable_secgroup_rule_neutron(secgroup=self.security_group)
+            except Exception as e:
+                LOG.debug("Login sec group already exists: {0}".format(e))
+
             self.addCleanup(self.cleanup_wrapper, self.security_group)
 
         self.network, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
