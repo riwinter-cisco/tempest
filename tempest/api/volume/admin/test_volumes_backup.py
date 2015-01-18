@@ -23,19 +23,16 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class VolumesBackupsTest(base.BaseVolumeV1AdminTest):
+class VolumesBackupsV2Test(base.BaseVolumeAdminTest):
     _interface = "json"
 
     @classmethod
-    @test.safe_setup
-    def setUpClass(cls):
-        super(VolumesBackupsTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(VolumesBackupsV2Test, cls).resource_setup()
 
         if not CONF.volume_feature_enabled.backup:
             raise cls.skipException("Cinder backup feature disabled")
 
-        cls.volumes_adm_client = cls.os_adm.volumes_client
-        cls.backups_adm_client = cls.os_adm.backups_client
         cls.volume = cls.create_volume()
 
     @test.attr(type='smoke')
@@ -43,37 +40,37 @@ class VolumesBackupsTest(base.BaseVolumeV1AdminTest):
         # Create backup
         backup_name = data_utils.rand_name('Backup')
         create_backup = self.backups_adm_client.create_backup
-        resp, backup = create_backup(self.volume['id'],
-                                     name=backup_name)
-        self.assertEqual(202, resp.status)
+        _, backup = create_backup(self.volume['id'],
+                                  name=backup_name)
         self.addCleanup(self.backups_adm_client.delete_backup,
                         backup['id'])
         self.assertEqual(backup_name, backup['name'])
-        self.volumes_adm_client.wait_for_volume_status(self.volume['id'],
-                                                       'available')
+        self.admin_volume_client.wait_for_volume_status(
+            self.volume['id'], 'available')
         self.backups_adm_client.wait_for_backup_status(backup['id'],
                                                        'available')
 
         # Get a given backup
-        resp, backup = self.backups_adm_client.get_backup(backup['id'])
-        self.assertEqual(200, resp.status)
+        _, backup = self.backups_adm_client.get_backup(backup['id'])
         self.assertEqual(backup_name, backup['name'])
 
         # Get all backups with detail
-        resp, backups = self.backups_adm_client.list_backups_with_detail()
-        self.assertEqual(200, resp.status)
+        _, backups = self.backups_adm_client.list_backups_with_detail()
         self.assertIn((backup['name'], backup['id']),
                       [(m['name'], m['id']) for m in backups])
 
         # Restore backup
-        resp, restore = self.backups_adm_client.restore_backup(backup['id'])
-        self.assertEqual(202, resp.status)
+        _, restore = self.backups_adm_client.restore_backup(backup['id'])
 
         # Delete backup
-        self.addCleanup(self.volumes_adm_client.delete_volume,
+        self.addCleanup(self.admin_volume_client.delete_volume,
                         restore['volume_id'])
         self.assertEqual(backup['id'], restore['backup_id'])
         self.backups_adm_client.wait_for_backup_status(backup['id'],
                                                        'available')
-        self.volumes_adm_client.wait_for_volume_status(restore['volume_id'],
-                                                       'available')
+        self.admin_volume_client.wait_for_volume_status(
+            restore['volume_id'], 'available')
+
+
+class VolumesBackupsV1Test(VolumesBackupsV2Test):
+    _api_version = 1

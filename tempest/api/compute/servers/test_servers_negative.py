@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import base64
 import sys
 
 import testtools
@@ -42,13 +41,10 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
         super(ServersNegativeTestJSON, self).tearDown()
 
     @classmethod
-    def setUpClass(cls):
-        super(ServersNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ServersNegativeTestJSON, cls).resource_setup()
         cls.client = cls.servers_client
-        if CONF.compute.allow_tenant_isolation:
-            cls.alt_os = clients.Manager(cls.isolated_creds.get_alt_creds())
-        else:
-            cls.alt_os = clients.AltManager()
+        cls.alt_os = clients.Manager(cls.isolated_creds.get_alt_creds())
         cls.alt_client = cls.alt_os.servers_client
         resp, server = cls.create_test_server(wait_until='ACTIVE')
         cls.server_id = server['id']
@@ -169,25 +165,13 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
     def test_rebuild_non_existent_server(self):
         # Rebuild a non existent server
         nonexistent_server = data_utils.rand_uuid()
-        meta = {'rebuild': 'server'}
-        new_name = data_utils.rand_name('server')
-        file_contents = 'Test server rebuild.'
-        personality = [{'path': '/etc/rebuild.txt',
-                        'contents': base64.b64encode(file_contents)}]
         self.assertRaises(exceptions.NotFound,
                           self.client.rebuild,
                           nonexistent_server,
-                          self.image_ref_alt,
-                          name=new_name, meta=meta,
-                          personality=personality,
-                          adminPass='rebuild')
+                          self.image_ref_alt)
 
     @test.attr(type=['negative', 'gate'])
     def test_create_numeric_server_name(self):
-        # Create a server with a numeric name
-        if self.__class__._interface == "xml":
-            raise self.skipException("Not testable in XML")
-
         server_name = 12345
         self.assertRaises(exceptions.BadRequest,
                           self.create_test_server,
@@ -226,7 +210,7 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
         # Pass really long metadata while creating a server
 
         metadata = {'a': 'b' * 260}
-        self.assertRaises(exceptions.OverLimit,
+        self.assertRaises((exceptions.BadRequest, exceptions.OverLimit),
                           self.create_test_server,
                           meta=metadata)
 
@@ -404,13 +388,6 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
                           nonexistent_server)
 
     @test.attr(type=['negative', 'gate'])
-    def test_force_delete_server_invalid_state(self):
-        # we can only force-delete a server in 'soft-delete' state
-        self.assertRaises(exceptions.Conflict,
-                          self.client.force_delete_server,
-                          self.server_id)
-
-    @test.attr(type=['negative', 'gate'])
     def test_restore_nonexistent_server_id(self):
         # restore-delete a non existent server
         nonexistent_server = data_utils.rand_uuid()
@@ -425,6 +402,8 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
                           self.client.restore_soft_deleted_server,
                           self.server_id)
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.shelve,
+                          'Shelve is not available.')
     @test.attr(type=['negative', 'gate'])
     def test_shelve_non_existent_server(self):
         # shelve a non existent server
@@ -432,6 +411,8 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
         self.assertRaises(exceptions.NotFound, self.client.shelve_server,
                           nonexistent_server)
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.shelve,
+                          'Shelve is not available.')
     @test.attr(type=['negative', 'gate'])
     def test_shelve_shelved_server(self):
         # shelve a shelved server.
@@ -460,6 +441,8 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
 
         self.client.unshelve_server(self.server_id)
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.shelve,
+                          'Shelve is not available.')
     @test.attr(type=['negative', 'gate'])
     def test_unshelve_non_existent_server(self):
         # unshelve a non existent server
@@ -467,13 +450,11 @@ class ServersNegativeTestJSON(base.BaseV2ComputeTest):
         self.assertRaises(exceptions.NotFound, self.client.unshelve_server,
                           nonexistent_server)
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.shelve,
+                          'Shelve is not available.')
     @test.attr(type=['negative', 'gate'])
     def test_unshelve_server_invalid_state(self):
         # unshelve an active server.
         self.assertRaises(exceptions.Conflict,
                           self.client.unshelve_server,
                           self.server_id)
-
-
-class ServersNegativeTestXML(ServersNegativeTestJSON):
-    _interface = 'xml'

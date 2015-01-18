@@ -16,7 +16,7 @@
 import json
 import urllib
 
-from tempest.api_schema.compute.v2 import security_groups as schema
+from tempest.api_schema.response.compute.v2 import security_groups as schema
 from tempest.common import rest_client
 from tempest import config
 from tempest import exceptions
@@ -143,3 +143,8 @@ class SecurityGroupsClientJSON(rest_client.RestClient):
         except exceptions.NotFound:
             return True
         return False
+
+    @property
+    def resource_type(self):
+        """Returns the primary type of resource this client works with."""
+        return 'security_group'

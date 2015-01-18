@@ -16,7 +16,7 @@
 import json
 import urllib
 
-from tempest.api_schema.compute.v2 import floating_ips as schema
+from tempest.api_schema.response.compute.v2 import floating_ips as schema
 from tempest.common import rest_client
 from tempest import config
 from tempest import exceptions
@@ -102,6 +102,11 @@ class FloatingIPsClientJSON(rest_client.RestClient):
             return True
         return False
 
+    @property
+    def resource_type(self):
+        """Returns the primary type of resource this client works with."""
+        return 'floating_ip'
+
     def list_floating_ip_pools(self, params=None):
         """Returns a list of all floating IP Pools."""
         url = 'os-floating-ip-pools'
@@ -130,6 +135,7 @@ class FloatingIPsClientJSON(rest_client.RestClient):
         """Returns a list of all floating IPs bulk."""
         resp, body = self.get('os-floating-ips-bulk')
         body = json.loads(body)
+        self.validate_response(schema.list_floating_ips_bulk, resp, body)
         return resp, body['floating_ip_info']
 
     def delete_floating_ips_bulk(self, ip_range):

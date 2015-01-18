@@ -26,48 +26,49 @@ LOG = logging.getLogger(__name__)
 class CinderResourcesTest(base.BaseOrchestrationTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(CinderResourcesTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(CinderResourcesTest, cls).resource_setup()
         if not CONF.service_available.cinder:
             raise cls.skipException('Cinder support is required')
 
-    def _cinder_verify(self, volume_id):
+    def _cinder_verify(self, volume_id, template):
         self.assertIsNotNone(volume_id)
-        resp, volume = self.volumes_client.get_volume(volume_id)
-        self.assertEqual(200, resp.status)
+        _, volume = self.volumes_client.get_volume(volume_id)
         self.assertEqual('available', volume.get('status'))
-        self.assertEqual(1, volume.get('size'))
-        self.assertEqual('a descriptive description',
-                         volume.get('display_description'))
-        self.assertEqual('volume_name',
-                         volume.get('display_name'))
+        self.assertEqual(template['resources']['volume']['properties'][
+            'size'], volume.get('size'))
+        self.assertEqual(template['resources']['volume']['properties'][
+            'description'], volume.get('display_description'))
+        self.assertEqual(template['resources']['volume']['properties'][
+            'name'], volume.get('display_name'))
 
-    def _outputs_verify(self, stack_identifier):
+    def _outputs_verify(self, stack_identifier, template):
         self.assertEqual('available',
                          self.get_stack_output(stack_identifier, 'status'))
-        self.assertEqual('1',
-                         self.get_stack_output(stack_identifier, 'size'))
-        self.assertEqual('a descriptive description',
-                         self.get_stack_output(stack_identifier,
-                                               'display_description'))
-        self.assertEqual('volume_name',
-                         self.get_stack_output(stack_identifier,
-                                               'display_name'))
+        self.assertEqual(str(template['resources']['volume']['properties'][
+            'size']), self.get_stack_output(stack_identifier, 'size'))
+        self.assertEqual(template['resources']['volume']['properties'][
+            'description'], self.get_stack_output(stack_identifier,
+                                                  'display_description'))
+        self.assertEqual(template['resources']['volume']['properties'][
+            'name'], self.get_stack_output(stack_identifier, 'display_name'))
 
     @test.attr(type='gate')
+    @test.services('volume')
     def test_cinder_volume_create_delete(self):
         """Create and delete a volume via OS::Cinder::Volume."""
         stack_name = data_utils.rand_name('heat')
-        template = self.load_template('cinder_basic')
+        template = self.read_template('cinder_basic')
         stack_identifier = self.create_stack(stack_name, template)
         self.client.wait_for_stack_status(stack_identifier, 'CREATE_COMPLETE')
 
         # Verify with cinder that the volume exists, with matching details
         volume_id = self.get_stack_output(stack_identifier, 'volume_id')
-        self._cinder_verify(volume_id)
+        cinder_basic_template = self.load_template('cinder_basic')
+        self._cinder_verify(volume_id, cinder_basic_template)
 
         # Verify the stack outputs are as expected
-        self._outputs_verify(stack_identifier)
+        self._outputs_verify(stack_identifier, cinder_basic_template)
 
         # Delete the stack and ensure the volume is gone
         self.client.delete_stack(stack_identifier)
@@ -78,29 +79,30 @@ class CinderResourcesTest(base.BaseOrchestrationTest):
 
     def _cleanup_volume(self, volume_id):
         """Cleanup the volume direct with cinder."""
-        resp = self.volumes_client.delete_volume(volume_id)
-        self.assertEqual(202, resp[0].status)
+        self.volumes_client.delete_volume(volume_id)
         self.volumes_client.wait_for_resource_deletion(volume_id)
 
     @test.attr(type='gate')
+    @test.services('volume')
     def test_cinder_volume_create_delete_retain(self):
         """Ensure the 'Retain' deletion policy is respected."""
         stack_name = data_utils.rand_name('heat')
-        template = self.load_template('cinder_basic_delete_retain')
+        template = self.read_template('cinder_basic_delete_retain')
         stack_identifier = self.create_stack(stack_name, template)
         self.client.wait_for_stack_status(stack_identifier, 'CREATE_COMPLETE')
 
         # Verify with cinder that the volume exists, with matching details
         volume_id = self.get_stack_output(stack_identifier, 'volume_id')
         self.addCleanup(self._cleanup_volume, volume_id)
-        self._cinder_verify(volume_id)
+        retain_template = self.load_template('cinder_basic_delete_retain')
+        self._cinder_verify(volume_id, retain_template)
 
         # Verify the stack outputs are as expected
-        self._outputs_verify(stack_identifier)
+        self._outputs_verify(stack_identifier, retain_template)
 
         # Delete the stack and ensure the volume is *not* gone
         self.client.delete_stack(stack_identifier)
         self.client.wait_for_stack_status(stack_identifier, 'DELETE_COMPLETE')
-        self._cinder_verify(volume_id)
+        self._cinder_verify(volume_id, retain_template)
 
         # Volume cleanup happens via addCleanup calling _cleanup_volume

@@ -26,21 +26,14 @@ CONF = config.CONF
 class ServerRescueNegativeTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    @test.safe_setup
-    def setUpClass(cls):
+    def resource_setup(cls):
         if not CONF.compute_feature_enabled.rescue:
             msg = "Server rescue not available."
             raise cls.skipException(msg)
 
         cls.set_network_resources(network=True, subnet=True, router=True)
-        super(ServerRescueNegativeTestJSON, cls).setUpClass()
-        cls.device = 'vdf'
-
-        # Create a volume and wait for it to become ready for attach
-        resp, cls.volume = cls.volumes_extensions_client.create_volume(
-            1, display_name=data_utils.rand_name(cls.__name__ + '_volume'))
-        cls.volumes_extensions_client.wait_for_volume_status(
-            cls.volume['id'], 'available')
+        super(ServerRescueNegativeTestJSON, cls).resource_setup()
+        cls.device = CONF.compute.volume_device_name
 
         # Server for negative tests
         resp, server = cls.create_test_server(wait_until='BUILD')
@@ -55,10 +48,14 @@ class ServerRescueNegativeTestJSON(base.BaseV2ComputeTest):
         cls.servers_client.wait_for_server_status(cls.rescue_id, 'RESCUE')
         cls.servers_client.wait_for_server_status(cls.server_id, 'ACTIVE')
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.delete_volume(cls.volume['id'])
-        super(ServerRescueNegativeTestJSON, cls).tearDownClass()
+    def _create_volume(self):
+        resp, volume = self.volumes_extensions_client.create_volume(
+            1, display_name=data_utils.rand_name(
+                self.__class__.__name__ + '_volume'))
+        self.addCleanup(self.delete_volume, volume['id'])
+        self.volumes_extensions_client.wait_for_volume_status(
+            volume['id'], 'available')
+        return volume
 
     def _detach(self, server_id, volume_id):
         self.servers_client.detach_volume(server_id, volume_id)
@@ -108,8 +105,11 @@ class ServerRescueNegativeTestJSON(base.BaseV2ComputeTest):
                           self.rescue_id,
                           self.image_ref_alt)
 
+    @test.services('volume')
     @test.attr(type=['negative', 'gate'])
     def test_rescued_vm_attach_volume(self):
+        volume = self._create_volume()
+
         # Rescue the server
         self.servers_client.rescue_server(self.server_id,
                                           adminPass=self.password)
@@ -120,32 +120,31 @@ class ServerRescueNegativeTestJSON(base.BaseV2ComputeTest):
         self.assertRaises(exceptions.Conflict,
                           self.servers_client.attach_volume,
                           self.server_id,
-                          self.volume['id'],
+                          volume['id'],
                           device='/dev/%s' % self.device)
 
+    @test.services('volume')
     @test.attr(type=['negative', 'gate'])
     def test_rescued_vm_detach_volume(self):
+        volume = self._create_volume()
+
         # Attach the volume to the server
         self.servers_client.attach_volume(self.server_id,
-                                          self.volume['id'],
+                                          volume['id'],
                                           device='/dev/%s' % self.device)
         self.volumes_extensions_client.wait_for_volume_status(
-            self.volume['id'], 'in-use')
+            volume['id'], 'in-use')
 
         # Rescue the server
         self.servers_client.rescue_server(self.server_id,
                                           adminPass=self.password)
         self.servers_client.wait_for_server_status(self.server_id, 'RESCUE')
         # addCleanup is a LIFO queue
-        self.addCleanup(self._detach, self.server_id, self.volume['id'])
+        self.addCleanup(self._detach, self.server_id, volume['id'])
         self.addCleanup(self._unrescue, self.server_id)
 
         # Detach the volume from the server expecting failure
         self.assertRaises(exceptions.Conflict,
                           self.servers_client.detach_volume,
                           self.server_id,
-                          self.volume['id'])
-
-
-class ServerRescueNegativeTestXML(ServerRescueNegativeTestJSON):
-    _interface = 'xml'
+                          volume['id'])

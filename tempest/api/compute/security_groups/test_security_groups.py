@@ -22,11 +22,12 @@ from tempest import test
 class SecurityGroupsTestJSON(base.BaseSecurityGroupsTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(SecurityGroupsTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(SecurityGroupsTestJSON, cls).resource_setup()
         cls.client = cls.security_groups_client
 
     @test.attr(type='smoke')
+    @test.services('network')
     def test_security_groups_create_list_delete(self):
         # Positive test:Should return the list of Security Groups
         # Create 3 Security Groups
@@ -61,6 +62,7 @@ class SecurityGroupsTestJSON(base.BaseSecurityGroupsTest):
                                             for m_group in deleted_sgs))
 
     @test.attr(type='smoke')
+    @test.services('network')
     def test_security_group_create_get_delete(self):
         # Security Group should be created, fetched and deleted
         # with char space between name along with
@@ -85,6 +87,7 @@ class SecurityGroupsTestJSON(base.BaseSecurityGroupsTest):
         self.client.wait_for_resource_deletion(securitygroup['id'])
 
     @test.attr(type='smoke')
+    @test.services('network')
     def test_server_security_groups(self):
         # Checks that security groups may be added and linked to a server
         # and not deleted if the server is active.
@@ -131,6 +134,7 @@ class SecurityGroupsTestJSON(base.BaseSecurityGroupsTest):
         self.assertEqual(202, resp.status)
 
     @test.attr(type='smoke')
+    @test.services('network')
     def test_update_security_groups(self):
         # Update security group name and description
         # Create a security group
@@ -151,7 +155,3 @@ class SecurityGroupsTestJSON(base.BaseSecurityGroupsTest):
             self.client.get_security_group(securitygroup_id)
         self.assertEqual(s_new_name, fetched_group['name'])
         self.assertEqual(s_new_des, fetched_group['description'])
-
-
-class SecurityGroupsTestXML(SecurityGroupsTestJSON):
-    _interface = 'xml'

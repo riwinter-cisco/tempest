@@ -38,7 +38,7 @@ class CfnInitScenarioTest(manager.OrchestrationScenarioTest):
             self.keypair_name = CONF.orchestration.keypair_name
         else:
             self.keypair = self.create_keypair()
-            self.keypair_name = self.keypair.id
+            self.keypair_name = self.keypair['name']
 
     def launch_stack(self):
         net = self._get_default_network()
@@ -52,40 +52,46 @@ class CfnInitScenarioTest(manager.OrchestrationScenarioTest):
 
         # create the stack
         self.template = self._load_template(__file__, self.template_name)
-        self.client.stacks.create(
-            stack_name=self.stack_name,
+        _, stack = self.client.create_stack(
+            name=self.stack_name,
             template=self.template,
             parameters=self.parameters)
+        stack = stack['stack']
 
-        self.stack = self.client.stacks.get(self.stack_name)
-        self.stack_identifier = '%s/%s' % (self.stack_name, self.stack.id)
-        self.addCleanup(self._stack_delete, self.stack_identifier)
+        _, self.stack = self.client.get_stack(stack['id'])
+        self.stack_identifier = '%s/%s' % (self.stack_name, self.stack['id'])
+        self.addCleanup(self.delete_wrapper,
+                        self.orchestration_client.delete_stack,
+                        self.stack_identifier)
 
     def check_stack(self):
         sid = self.stack_identifier
-        self._wait_for_resource_status(
+        self.client.wait_for_resource_status(
             sid, 'WaitHandle', 'CREATE_COMPLETE')
-        self._wait_for_resource_status(
+        self.client.wait_for_resource_status(
             sid, 'SmokeSecurityGroup', 'CREATE_COMPLETE')
-        self._wait_for_resource_status(
+        self.client.wait_for_resource_status(
             sid, 'SmokeKeys', 'CREATE_COMPLETE')
-        self._wait_for_resource_status(
+        self.client.wait_for_resource_status(
             sid, 'CfnUser', 'CREATE_COMPLETE')
-        self._wait_for_resource_status(
+        self.client.wait_for_resource_status(
             sid, 'SmokeServer', 'CREATE_COMPLETE')
 
-        server_resource = self.client.resources.get(sid, 'SmokeServer')
-        server_id = server_resource.physical_resource_id
-        server = self.compute_client.servers.get(server_id)
-        server_ip = server.networks[CONF.compute.network_for_ssh][0]
+        _, server_resource = self.client.get_resource(sid, 'SmokeServer')
+        server_id = server_resource['physical_resource_id']
+        _, server = self.servers_client.get_server(server_id)
+        server_ip =\
+            server['addresses'][CONF.compute.network_for_ssh][0]['addr']
 
-        if not self._ping_ip_address(server_ip):
+        if not self.ping_ip_address(
+            server_ip, ping_timeout=CONF.orchestration.build_timeout):
             self._log_console_output(servers=[server])
             self.fail(
-                "Timed out waiting for %s to become reachable" % server_ip)
+                "(CfnInitScenarioTest:test_server_cfn_init) Timed out waiting "
+                "for %s to become reachable" % server_ip)
 
         try:
-            self._wait_for_resource_status(
+            self.client.wait_for_resource_status(
                 sid, 'WaitCondition', 'CREATE_COMPLETE')
         except (exceptions.StackResourceBuildErrorException,
                 exceptions.TimeoutException) as e:
@@ -96,9 +102,9 @@ class CfnInitScenarioTest(manager.OrchestrationScenarioTest):
             # logs to be compared
             self._log_console_output(servers=[server])
 
-        self._wait_for_stack_status(sid, 'CREATE_COMPLETE')
+        self.client.wait_for_stack_status(sid, 'CREATE_COMPLETE')
 
-        stack = self.client.stacks.get(sid)
+        _, stack = self.client.get_stack(sid)
 
         # This is an assert of great significance, as it means the following
         # has happened:
@@ -113,16 +119,11 @@ class CfnInitScenarioTest(manager.OrchestrationScenarioTest):
         if self.keypair:
             # Check that the user can authenticate with the generated
             # keypair
-            try:
-                linux_client = self.get_remote_client(
-                    server_ip, username='ec2-user')
-                linux_client.validate_authentication()
-            except (exceptions.ServerUnreachable,
-                    exceptions.SSHTimeout) as e:
-                self._log_console_output(servers=[server])
-                raise e
+            self.get_remote_client(server_ip, username='ec2-user',
+                                   log_console_of_servers=[server])
 
     @test.attr(type='slow')
+    @test.skip_because(bug='1374175')
     @test.services('orchestration', 'compute')
     def test_server_cfn_init(self):
         self.assign_keypair()

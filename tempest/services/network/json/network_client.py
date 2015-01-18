@@ -40,8 +40,13 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
     def deserialize_list(self, body):
         res = json.loads(body)
         # expecting response in form
-        # {'resources': [ res1, res2] }
-        return res[res.keys()[0]]
+        # {'resources': [ res1, res2] } => when pagination disabled
+        # {'resources': [..], 'resources_links': {}} => if pagination enabled
+        pagination_suffix = "_links"
+        for k in res.keys():
+            if k[-len(pagination_suffix):] == pagination_suffix:
+                continue
+            return res[k]
 
     def serialize(self, data):
         return json.dumps(data)
@@ -54,13 +59,15 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
         body = json.dumps(put_body)
         uri = '%s/quotas/%s' % (self.uri_prefix, tenant_id)
         resp, body = self.put(uri, body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body['quota']
+        return rest_client.ResponseBody(resp, body['quota'])
 
     def reset_quotas(self, tenant_id):
         uri = '%s/quotas/%s' % (self.uri_prefix, tenant_id)
         resp, body = self.delete(uri)
-        return resp, body
+        self.rest_client.expected_success(204, resp.status)
+        return rest_client.ResponseBody(resp, body)
 
     def create_router(self, name, admin_state_up=True, **kwargs):
         post_body = {'router': kwargs}
@@ -69,27 +76,36 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
         body = json.dumps(post_body)
         uri = '%s/routers' % (self.uri_prefix)
         resp, body = self.post(uri, body)
+        self.rest_client.expected_success(201, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def _update_router(self, router_id, set_enable_snat, **kwargs):
         uri = '%s/routers/%s' % (self.uri_prefix, router_id)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
         update_body = {}
         update_body['name'] = kwargs.get('name', body['router']['name'])
         update_body['admin_state_up'] = kwargs.get(
             'admin_state_up', body['router']['admin_state_up'])
         cur_gw_info = body['router']['external_gateway_info']
-        if cur_gw_info and not set_enable_snat:
-            cur_gw_info.pop('enable_snat', None)
+        if cur_gw_info:
+            # TODO(kevinbenton): setting the external gateway info is not
+            # allowed for a regular tenant. If the ability to update is also
+            # merged, a test case for this will need to be added similar to
+            # the SNAT case.
+            cur_gw_info.pop('external_fixed_ips', None)
+            if not set_enable_snat:
+                cur_gw_info.pop('enable_snat', None)
         update_body['external_gateway_info'] = kwargs.get(
             'external_gateway_info', body['router']['external_gateway_info'])
         update_body = dict(router=update_body)
         update_body = json.dumps(update_body)
         resp, body = self.put(uri, update_body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def update_router(self, router_id, **kwargs):
         """Update a router leaving enable_snat to its default value."""
@@ -110,39 +126,43 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
 
     def add_router_interface_with_subnet_id(self, router_id, subnet_id):
         uri = '%s/routers/%s/add_router_interface' % (self.uri_prefix,
-              router_id)
+                                                      router_id)
         update_body = {"subnet_id": subnet_id}
         update_body = json.dumps(update_body)
         resp, body = self.put(uri, update_body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def add_router_interface_with_port_id(self, router_id, port_id):
         uri = '%s/routers/%s/add_router_interface' % (self.uri_prefix,
-              router_id)
+                                                      router_id)
         update_body = {"port_id": port_id}
         update_body = json.dumps(update_body)
         resp, body = self.put(uri, update_body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def remove_router_interface_with_subnet_id(self, router_id, subnet_id):
         uri = '%s/routers/%s/remove_router_interface' % (self.uri_prefix,
-              router_id)
+                                                         router_id)
         update_body = {"subnet_id": subnet_id}
         update_body = json.dumps(update_body)
         resp, body = self.put(uri, update_body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def remove_router_interface_with_port_id(self, router_id, port_id):
         uri = '%s/routers/%s/remove_router_interface' % (self.uri_prefix,
-              router_id)
+                                                         router_id)
         update_body = {"port_id": port_id}
         update_body = json.dumps(update_body)
         resp, body = self.put(uri, update_body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def associate_health_monitor_with_pool(self, health_monitor_id,
                                            pool_id):
@@ -155,21 +175,24 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
         uri = '%s/lb/pools/%s/health_monitors' % (self.uri_prefix,
                                                   pool_id)
         resp, body = self.post(uri, body)
+        self.rest_client.expected_success(201, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def disassociate_health_monitor_with_pool(self, health_monitor_id,
                                               pool_id):
         uri = '%s/lb/pools/%s/health_monitors/%s' % (self.uri_prefix, pool_id,
                                                      health_monitor_id)
         resp, body = self.delete(uri)
-        return resp, body
+        self.rest_client.expected_success(204, resp.status)
+        return rest_client.ResponseBody(resp, body)
 
     def list_router_interfaces(self, uuid):
         uri = '%s/ports?device_id=%s' % (self.uri_prefix, uuid)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def update_agent(self, agent_id, agent_info):
         """
@@ -180,65 +203,75 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
         agent = {"agent": agent_info}
         body = json.dumps(agent)
         resp, body = self.put(uri, body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def list_pools_hosted_by_one_lbaas_agent(self, agent_id):
         uri = '%s/agents/%s/loadbalancer-pools' % (self.uri_prefix, agent_id)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def show_lbaas_agent_hosting_pool(self, pool_id):
         uri = ('%s/lb/pools/%s/loadbalancer-agent' %
                (self.uri_prefix, pool_id))
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def list_routers_on_l3_agent(self, agent_id):
         uri = '%s/agents/%s/l3-routers' % (self.uri_prefix, agent_id)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def list_l3_agents_hosting_router(self, router_id):
         uri = '%s/routers/%s/l3-agents' % (self.uri_prefix, router_id)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def add_router_to_l3_agent(self, agent_id, router_id):
         uri = '%s/agents/%s/l3-routers' % (self.uri_prefix, agent_id)
         post_body = {"router_id": router_id}
         body = json.dumps(post_body)
         resp, body = self.post(uri, body)
+        self.rest_client.expected_success(201, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def remove_router_from_l3_agent(self, agent_id, router_id):
         uri = '%s/agents/%s/l3-routers/%s' % (
             self.uri_prefix, agent_id, router_id)
         resp, body = self.delete(uri)
-        return resp, body
+        self.rest_client.expected_success(204, resp.status)
+        return rest_client.ResponseBody(resp, body)
 
     def list_dhcp_agent_hosting_network(self, network_id):
         uri = '%s/networks/%s/dhcp-agents' % (self.uri_prefix, network_id)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def list_networks_hosted_by_one_dhcp_agent(self, agent_id):
         uri = '%s/agents/%s/dhcp-networks' % (self.uri_prefix, agent_id)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def remove_network_from_dhcp_agent(self, agent_id, network_id):
         uri = '%s/agents/%s/dhcp-networks/%s' % (self.uri_prefix, agent_id,
                                                  network_id)
         resp, body = self.delete(uri)
-        return resp, body
+        self.rest_client.expected_success(204, resp.status)
+        return rest_client.ResponseBody(resp, body)
 
     def create_ikepolicy(self, name, **kwargs):
         post_body = {
@@ -251,8 +284,9 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
         body = json.dumps(post_body)
         uri = '%s/vpn/ikepolicies' % (self.uri_prefix)
         resp, body = self.post(uri, body)
+        self.rest_client.expected_success(201, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def update_extra_routes(self, router_id, nexthop, destination):
         uri = '%s/routers/%s' % (self.uri_prefix, router_id)
@@ -264,8 +298,9 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
         }
         body = json.dumps(put_body)
         resp, body = self.put(uri, body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def delete_extra_routes(self, router_id):
         uri = '%s/routers/%s' % (self.uri_prefix, router_id)
@@ -277,19 +312,49 @@ class NetworkClientJSON(network_client_base.NetworkClientBase):
         }
         body = json.dumps(put_body)
         resp, body = self.put(uri, body)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def list_lb_pool_stats(self, pool_id):
         uri = '%s/lb/pools/%s/stats' % (self.uri_prefix, pool_id)
         resp, body = self.get(uri)
+        self.rest_client.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
 
     def add_dhcp_agent_to_network(self, agent_id, network_id):
         post_body = {'network_id': network_id}
         body = json.dumps(post_body)
         uri = '%s/agents/%s/dhcp-networks' % (self.uri_prefix, agent_id)
         resp, body = self.post(uri, body)
+        self.rest_client.expected_success(201, resp.status)
         body = json.loads(body)
-        return resp, body
+        return rest_client.ResponseBody(resp, body)
+
+    def insert_firewall_rule_in_policy(self, firewall_policy_id,
+                                       firewall_rule_id, insert_after="",
+                                       insert_before=""):
+        uri = '%s/fw/firewall_policies/%s/insert_rule' % (self.uri_prefix,
+                                                          firewall_policy_id)
+        body = {
+            "firewall_rule_id": firewall_rule_id,
+            "insert_after": insert_after,
+            "insert_before": insert_before
+        }
+        body = json.dumps(body)
+        resp, body = self.put(uri, body)
+        self.rest_client.expected_success(200, resp.status)
+        body = json.loads(body)
+        return rest_client.ResponseBody(resp, body)
+
+    def remove_firewall_rule_from_policy(self, firewall_policy_id,
+                                         firewall_rule_id):
+        uri = '%s/fw/firewall_policies/%s/remove_rule' % (self.uri_prefix,
+                                                          firewall_policy_id)
+        update_body = {"firewall_rule_id": firewall_rule_id}
+        update_body = json.dumps(update_body)
+        resp, body = self.put(uri, update_body)
+        self.rest_client.expected_success(200, resp.status)
+        body = json.loads(body)
+        return rest_client.ResponseBody(resp, body)

@@ -23,8 +23,8 @@ from tempest import test
 class HealthcheckTest(base.BaseObjectTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(HealthcheckTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(HealthcheckTest, cls).resource_setup()
 
     def setUp(self):
         super(HealthcheckTest, self).setUp()
@@ -35,9 +35,6 @@ class HealthcheckTest(base.BaseObjectTest):
     def test_get_healthcheck(self):
 
         resp, _ = self.account_client.get("healthcheck", {})
-
-        # The status is expected to be 200
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
 
         # The target of the request is not any Swift resource. Therefore, the
         # existence of response header is checked without a custom matcher.

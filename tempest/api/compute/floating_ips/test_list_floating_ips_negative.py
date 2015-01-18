@@ -27,11 +27,12 @@ CONF = config.CONF
 class FloatingIPDetailsNegativeTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(FloatingIPDetailsNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(FloatingIPDetailsNegativeTestJSON, cls).resource_setup()
         cls.client = cls.floating_ips_client
 
     @test.attr(type=['negative', 'gate'])
+    @test.services('network')
     def test_get_nonexistent_floating_ip_details(self):
         # Negative test:Should not be able to GET the details
         # of non-existent floating IP
@@ -42,7 +43,3 @@ class FloatingIPDetailsNegativeTestJSON(base.BaseV2ComputeTest):
             non_exist_id = data_utils.rand_int_id(start=999)
         self.assertRaises(exceptions.NotFound,
                           self.client.get_floating_ip_details, non_exist_id)
-
-
-class FloatingIPDetailsNegativeTestXML(FloatingIPDetailsNegativeTestJSON):
-    _interface = 'xml'

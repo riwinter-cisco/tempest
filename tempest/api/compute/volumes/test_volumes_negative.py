@@ -27,8 +27,8 @@ CONF = config.CONF
 class VolumesNegativeTest(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(VolumesNegativeTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(VolumesNegativeTest, cls).resource_setup()
         cls.client = cls.volumes_extensions_client
         if not CONF.service_available.cinder:
             skip_msg = ("%s skipped as Cinder is not available" % cls.__name__)
@@ -98,7 +98,3 @@ class VolumesNegativeTest(base.BaseV2ComputeTest):
     def test_delete_volume_without_passing_volume_id(self):
         # Negative: Should not be able to delete volume when empty ID is passed
         self.assertRaises(exceptions.NotFound, self.client.delete_volume, '')
-
-
-class VolumesNegativeTestXML(VolumesNegativeTest):
-    _interface = "xml"

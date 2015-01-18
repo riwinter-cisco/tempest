@@ -21,14 +21,13 @@ class DatabaseVersionsTest(base.BaseDatabaseTest):
     _interface = 'json'
 
     @classmethod
-    def setUpClass(cls):
-        super(DatabaseVersionsTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(DatabaseVersionsTest, cls).resource_setup()
         cls.client = cls.database_versions_client
 
     @test.attr(type='smoke')
     def test_list_db_versions(self):
-        resp, versions = self.client.list_db_versions()
-        self.assertEqual(200, resp.status)
+        _, versions = self.client.list_db_versions()
         self.assertTrue(len(versions) > 0, "No database versions found")
         # List of all versions should contain the current version, and there
         # should only be one 'current' version

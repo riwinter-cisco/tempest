@@ -13,143 +13,106 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import os
-import shlex
-import subprocess
+import functools
 
-import tempest.cli.output_parser
+from tempest_lib.cli import base
+from tempest_lib.cli import output_parser
+import testtools
+
+from tempest.common import credentials
 from tempest import config
-from tempest.openstack.common import log as logging
-import tempest.test
+from tempest import exceptions
+from tempest.openstack.common import versionutils
+from tempest import test
 
-
-LOG = logging.getLogger(__name__)
 
 CONF = config.CONF
 
 
-class ClientTestBase(tempest.test.BaseTestCase):
+def check_client_version(client, version):
+    """Checks if the client's version is compatible with the given version
+
+    @param client: The client to check.
+    @param version: The version to compare against.
+    @return: True if the client version is compatible with the given version
+             parameter, False otherwise.
+    """
+    current_version = base.execute(client, '', params='--version',
+                                   merge_stderr=True, cli_dir=CONF.cli.cli_dir)
+
+    if not current_version.strip():
+        raise exceptions.TempestException('"%s --version" output was empty' %
+                                          client)
+
+    return versionutils.is_compatible(version, current_version,
+                                      same_major=False)
+
+
+def min_client_version(*args, **kwargs):
+    """A decorator to skip tests if the client used isn't of the right version.
+
+    @param client: The client command to run. For python-novaclient, this is
+                   'nova', for python-cinderclient this is 'cinder', etc.
+    @param version: The minimum version required to run the CLI test.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*func_args, **func_kwargs):
+            if not check_client_version(kwargs['client'], kwargs['version']):
+                msg = "requires %s client version >= %s" % (kwargs['client'],
+                                                            kwargs['version'])
+                raise testtools.TestCase.skipException(msg)
+            return func(*func_args, **func_kwargs)
+        return wrapper
+    return decorator
+
+
+class ClientTestBase(test.BaseTestCase):
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         if not CONF.cli.enabled:
             msg = "cli testing disabled"
             raise cls.skipException(msg)
-        super(ClientTestBase, cls).setUpClass()
+        super(ClientTestBase, cls).resource_setup()
+        cls.cred_prov = credentials.get_isolated_credentials(cls.__name__)
+        cls.creds = cls.cred_prov.get_admin_creds()
 
-    def __init__(self, *args, **kwargs):
-        self.parser = tempest.cli.output_parser
-        super(ClientTestBase, self).__init__(*args, **kwargs)
+    def _get_clients(self):
+        clients = base.CLIClient(self.creds.username,
+                                 self.creds.password,
+                                 self.creds.tenant_name,
+                                 CONF.identity.uri, CONF.cli.cli_dir)
+        return clients
 
-    def nova(self, action, flags='', params='', admin=True, fail_ok=False):
-        """Executes nova command for the given action."""
-        flags += ' --endpoint-type %s' % CONF.compute.endpoint_type
-        return self.cmd_with_auth(
-            'nova', action, flags, params, admin, fail_ok)
-
-    def nova_manage(self, action, flags='', params='', fail_ok=False,
-                    merge_stderr=False):
-        """Executes nova-manage command for the given action."""
-        return self.cmd(
-            'nova-manage', action, flags, params, fail_ok, merge_stderr)
-
-    def keystone(self, action, flags='', params='', admin=True, fail_ok=False):
-        """Executes keystone command for the given action."""
-        return self.cmd_with_auth(
-            'keystone', action, flags, params, admin, fail_ok)
-
-    def glance(self, action, flags='', params='', admin=True, fail_ok=False):
-        """Executes glance command for the given action."""
-        flags += ' --os-endpoint-type %s' % CONF.image.endpoint_type
-        return self.cmd_with_auth(
-            'glance', action, flags, params, admin, fail_ok)
-
-    def ceilometer(self, action, flags='', params='', admin=True,
-                   fail_ok=False):
-        """Executes ceilometer command for the given action."""
-        flags += ' --os-endpoint-type %s' % CONF.telemetry.endpoint_type
-        return self.cmd_with_auth(
-            'ceilometer', action, flags, params, admin, fail_ok)
-
-    def heat(self, action, flags='', params='', admin=True,
-             fail_ok=False):
-        """Executes heat command for the given action."""
-        flags += ' --os-endpoint-type %s' % CONF.orchestration.endpoint_type
-        return self.cmd_with_auth(
-            'heat', action, flags, params, admin, fail_ok)
-
-    def cinder(self, action, flags='', params='', admin=True, fail_ok=False):
-        """Executes cinder command for the given action."""
-        flags += ' --endpoint-type %s' % CONF.volume.endpoint_type
-        return self.cmd_with_auth(
-            'cinder', action, flags, params, admin, fail_ok)
-
-    def swift(self, action, flags='', params='', admin=True, fail_ok=False):
-        """Executes swift command for the given action."""
-        flags += ' --os-endpoint-type %s' % CONF.object_storage.endpoint_type
-        return self.cmd_with_auth(
-            'swift', action, flags, params, admin, fail_ok)
-
-    def neutron(self, action, flags='', params='', admin=True, fail_ok=False):
-        """Executes neutron command for the given action."""
-        flags += ' --endpoint-type %s' % CONF.network.endpoint_type
-        return self.cmd_with_auth(
-            'neutron', action, flags, params, admin, fail_ok)
-
-    def sahara(self, action, flags='', params='', admin=True, fail_ok=False):
-        """Executes sahara command for the given action."""
-        flags += ' --endpoint-type %s' % CONF.data_processing.endpoint_type
-        return self.cmd_with_auth(
-            'sahara', action, flags, params, admin, fail_ok)
-
-    def cmd_with_auth(self, cmd, action, flags='', params='',
-                      admin=True, fail_ok=False):
-        """Executes given command with auth attributes appended."""
-        # TODO(jogo) make admin=False work
-        creds = ('--os-username %s --os-tenant-name %s --os-password %s '
-                 '--os-auth-url %s' %
-                 (CONF.identity.admin_username,
-                  CONF.identity.admin_tenant_name,
-                  CONF.identity.admin_password,
-                  CONF.identity.uri))
-        flags = creds + ' ' + flags
-        return self.cmd(cmd, action, flags, params, fail_ok)
-
-    def cmd(self, cmd, action, flags='', params='', fail_ok=False,
-            merge_stderr=False):
-        """Executes specified command for the given action."""
-        cmd = ' '.join([os.path.join(CONF.cli.cli_dir, cmd),
-                        flags, action, params])
-        LOG.info("running: '%s'" % cmd)
-        cmd = shlex.split(cmd)
-        result = ''
-        result_err = ''
-        stdout = subprocess.PIPE
-        stderr = subprocess.STDOUT if merge_stderr else subprocess.PIPE
-        proc = subprocess.Popen(
-            cmd, stdout=stdout, stderr=stderr)
-        result, result_err = proc.communicate()
-        if not fail_ok and proc.returncode != 0:
-            raise CommandFailed(proc.returncode,
-                                cmd,
-                                result,
-                                stderr=result_err)
-        return result
+    # TODO(mtreinish): The following code is basically copied from tempest-lib.
+    # The base cli test class in tempest-lib 0.0.1 doesn't work as a mixin like
+    # is needed here. The code below should be removed when tempest-lib
+    # provides a way to provide this functionality
+    def setUp(self):
+        super(ClientTestBase, self).setUp()
+        self.clients = self._get_clients()
+        self.parser = output_parser
 
     def assertTableStruct(self, items, field_names):
-        """Verify that all items has keys listed in field_names."""
+        """Verify that all items has keys listed in field_names.
+
+        :param items: items to assert are field names in the output table
+        :type items: list
+        :param field_names: field names from the output table of the cmd
+        :type field_names: list
+        """
         for item in items:
             for field in field_names:
                 self.assertIn(field, item)
 
     def assertFirstLineStartsWith(self, lines, beginning):
+        """Verify that the first line starts with a string
+
+        :param lines: strings for each line of output
+        :type lines: list
+        :param beginning: verify this is at the beginning of the first line
+        :type beginning: string
+        """
         self.assertTrue(lines[0].startswith(beginning),
                         msg=('Beginning of first line has invalid content: %s'
                              % lines[:3]))
-
-
-class CommandFailed(subprocess.CalledProcessError):
-    # adds output attribute for python2.6
-    def __init__(self, returncode, cmd, output, stderr=""):
-        super(CommandFailed, self).__init__(returncode, cmd)
-        self.output = output
-        self.stderr = stderr

@@ -20,8 +20,8 @@ from tempest import test
 class ServerMetadataTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(ServerMetadataTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ServerMetadataTestJSON, cls).resource_setup()
         cls.client = cls.servers_client
         cls.quotas = cls.quotas_client
         resp, server = cls.create_test_server(meta={}, wait_until='ACTIVE')
@@ -113,7 +113,3 @@ class ServerMetadataTestJSON(base.BaseV2ComputeTest):
         resp, resp_metadata = self.client.list_server_metadata(self.server_id)
         expected = {'key2': 'value2'}
         self.assertEqual(expected, resp_metadata)
-
-
-class ServerMetadataTestXML(ServerMetadataTestJSON):
-    _interface = 'xml'

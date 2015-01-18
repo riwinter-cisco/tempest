@@ -20,8 +20,8 @@ from tempest import test
 class AbsoluteLimitsTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(AbsoluteLimitsTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(AbsoluteLimitsTestJSON, cls).resource_setup()
         cls.client = cls.limits_client
 
     @test.attr(type='gate')
@@ -43,7 +43,3 @@ class AbsoluteLimitsTestJSON(base.BaseV2ComputeTest):
         self.assertEqual(0, len(missing_elements),
                          "Failed to find element %s in absolute limits list"
                          % ', '.join(ele for ele in missing_elements))
-
-
-class AbsoluteLimitsTestXML(AbsoluteLimitsTestJSON):
-    _interface = 'xml'

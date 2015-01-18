@@ -30,8 +30,8 @@ CONF = config.CONF
 class ObjectTempUrlTest(base.BaseObjectTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(ObjectTempUrlTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(ObjectTempUrlTest, cls).resource_setup()
         # create a container
         cls.container_name = data_utils.rand_name(name='TestContainer')
         cls.container_client.create_container(cls.container_name)
@@ -52,16 +52,14 @@ class ObjectTempUrlTest(base.BaseObjectTest):
                                         cls.object_name, cls.content)
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         for metadata in cls.metadatas:
             cls.account_client.delete_account_metadata(
                 metadata=metadata)
 
         cls.delete_containers(cls.containers)
 
-        # delete the user setup created
-        cls.data.teardown_all()
-        super(ObjectTempUrlTest, cls).tearDownClass()
+        super(ObjectTempUrlTest, cls).resource_cleanup()
 
     def setUp(self):
         super(ObjectTempUrlTest, self).setUp()
@@ -107,13 +105,11 @@ class ObjectTempUrlTest(base.BaseObjectTest):
 
         # trying to get object using temp url within expiry time
         resp, body = self.object_client.get(url)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp, 'Object', 'GET')
         self.assertEqual(body, self.content)
 
         # Testing a HEAD on this Temp URL
         resp, body = self.object_client.head(url)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp, 'Object', 'HEAD')
 
     @test.attr(type='gate')
@@ -138,7 +134,6 @@ class ObjectTempUrlTest(base.BaseObjectTest):
                                  self.object_name, "GET",
                                  expires, key2)
         resp, body = self.object_client.get(url)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertEqual(body, self.content)
 
     @test.attr(type='gate')
@@ -155,12 +150,10 @@ class ObjectTempUrlTest(base.BaseObjectTest):
 
         # trying to put random data in the object using temp url
         resp, body = self.object_client.put(url, new_data, None)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp, 'Object', 'PUT')
 
         # Testing a HEAD on this Temp URL
         resp, body = self.object_client.head(url)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp, 'Object', 'HEAD')
 
         # Validate that the content of the object has been modified
@@ -183,5 +176,20 @@ class ObjectTempUrlTest(base.BaseObjectTest):
 
         # Testing a HEAD on this Temp URL
         resp, body = self.object_client.head(url)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp, 'Object', 'HEAD')
+
+    @test.attr(type='gate')
+    @test.requires_ext(extension='tempurl', service='object')
+    def test_get_object_using_temp_url_with_inline_query_parameter(self):
+        expires = self._get_expiry_date()
+
+        # get a temp URL for the created object
+        url = self._get_temp_url(self.container_name, self.object_name, "GET",
+                                 expires, self.key)
+        url = url + '&inline'
+
+        # trying to get object using temp url within expiry time
+        resp, body = self.object_client.get(url)
+        self.assertHeaders(resp, 'Object', 'GET')
+        self.assertEqual(body, self.content)
+        self.assertEqual(resp['content-disposition'], 'inline')

@@ -10,9 +10,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import netaddr
 import re
-import six
 import time
+
+import six
 
 from tempest.common import ssh
 from tempest import config
@@ -86,11 +88,13 @@ class RemoteClient():
         return self.exec_command(cmd)
 
     def ping_host(self, host):
-        cmd = 'ping -c1 -w1 %s' % host
+        addr = netaddr.IPAddress(host)
+        cmd = 'ping6' if addr.version == 6 else 'ping'
+        cmd += ' -c1 -w1 {0}'.format(host)
         return self.exec_command(cmd)
 
     def get_mac_address(self):
-        cmd = "/sbin/ifconfig | awk '/HWaddr/ {print $5}'"
+        cmd = "/bin/ip addr | awk '/ether/ {print $2}'"
         return self.exec_command(cmd)
 
     def get_ip_list(self):

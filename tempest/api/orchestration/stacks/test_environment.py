@@ -28,7 +28,7 @@ class StackEnvironmentTest(base.BaseOrchestrationTest):
     def test_environment_parameter(self):
         """Test passing a stack parameter via the environment."""
         stack_name = data_utils.rand_name('heat')
-        template = self.load_template('random_string')
+        template = self.read_template('random_string')
         environment = {'parameters': {'random_length': 20}}
 
         stack_identifier = self.create_stack(stack_name, template,
@@ -56,7 +56,7 @@ outputs:
 '''
         environment = {'resource_registry':
                        {'My:Random::String': 'my_random.yaml'}}
-        files = {'my_random.yaml': self.load_template('random_string')}
+        files = {'my_random.yaml': self.read_template('random_string')}
 
         stack_identifier = self.create_stack(stack_name, template,
                                              environment=environment,
@@ -65,7 +65,10 @@ outputs:
 
         # random_string.yaml specifies a length of 10
         random_value = self.get_stack_output(stack_identifier, 'random_value')
-        self.assertEqual(10, len(random_value))
+        random_string_template = self.load_template('random_string')
+        expected_length = random_string_template['parameters'][
+            'random_length']['default']
+        self.assertEqual(expected_length, len(random_value))
 
     @test.attr(type='gate')
     def test_files_provider_resource(self):
@@ -82,7 +85,7 @@ outputs:
     random_value:
         value: {get_attr: [random, random_value]}
 '''
-        files = {'my_random.yaml': self.load_template('random_string')}
+        files = {'my_random.yaml': self.read_template('random_string')}
 
         stack_identifier = self.create_stack(stack_name, template,
                                              files=files)
@@ -90,4 +93,7 @@ outputs:
 
         # random_string.yaml specifies a length of 10
         random_value = self.get_stack_output(stack_identifier, 'random_value')
-        self.assertEqual(10, len(random_value))
+        random_string_template = self.load_template('random_string')
+        expected_length = random_string_template['parameters'][
+            'random_length']['default']
+        self.assertEqual(expected_length, len(random_value))

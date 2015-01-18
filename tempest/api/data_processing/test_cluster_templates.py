@@ -22,8 +22,8 @@ class ClusterTemplateTest(dp_base.BaseDataProcessingTest):
     sahara/restapi/rest_api_v1.0.html#cluster-templates
     """
     @classmethod
-    def setUpClass(cls):
-        super(ClusterTemplateTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(ClusterTemplateTest, cls).resource_setup()
         # create node group template
         node_group_template = {
             'name': data_utils.rand_name('sahara-ng-template'),
@@ -38,7 +38,8 @@ class ClusterTemplateTest(dp_base.BaseDataProcessingTest):
                 }
             }
         }
-        resp_body = cls.create_node_group_template(**node_group_template)[1]
+        resp_body = cls.create_node_group_template(**node_group_template)
+        node_group_template_id = resp_body['id']
 
         cls.full_cluster_template = {
             'description': 'Test cluster template',
@@ -65,7 +66,7 @@ class ClusterTemplateTest(dp_base.BaseDataProcessingTest):
                 },
                 {
                     'name': 'worker-node',
-                    'node_group_template_id': resp_body['id'],
+                    'node_group_template_id': node_group_template_id,
                     'count': 3
                 }
             ]
@@ -93,23 +94,22 @@ class ClusterTemplateTest(dp_base.BaseDataProcessingTest):
     def _create_cluster_template(self, template_name=None):
         """Creates Cluster Template with optional name specified.
 
-        It creates template and ensures response status, template name and
-        response body. Returns id and name of created template.
+        It creates template, ensures template name and response body.
+        Returns id and name of created template.
         """
         if not template_name:
             # generate random name if it's not specified
             template_name = data_utils.rand_name('sahara-cluster-template')
 
         # create cluster template
-        resp, body = self.create_cluster_template(template_name,
-                                                  **self.full_cluster_template)
+        resp_body = self.create_cluster_template(template_name,
+                                                 **self.full_cluster_template)
 
         # ensure that template created successfully
-        self.assertEqual(202, resp.status)
-        self.assertEqual(template_name, body['name'])
-        self.assertDictContainsSubset(self.cluster_template, body)
+        self.assertEqual(template_name, resp_body['name'])
+        self.assertDictContainsSubset(self.cluster_template, resp_body)
 
-        return body['id'], template_name
+        return resp_body['id'], template_name
 
     @test.attr(type='smoke')
     def test_cluster_template_create(self):
@@ -120,8 +120,7 @@ class ClusterTemplateTest(dp_base.BaseDataProcessingTest):
         template_info = self._create_cluster_template()
 
         # check for cluster template in list
-        resp, templates = self.client.list_cluster_templates()
-        self.assertEqual(200, resp.status)
+        _, templates = self.client.list_cluster_templates()
         templates_info = [(template['id'], template['name'])
                           for template in templates]
         self.assertIn(template_info, templates_info)
@@ -131,16 +130,14 @@ class ClusterTemplateTest(dp_base.BaseDataProcessingTest):
         template_id, template_name = self._create_cluster_template()
 
         # check cluster template fetch by id
-        resp, template = self.client.get_cluster_template(template_id)
-        self.assertEqual(200, resp.status)
+        _, template = self.client.get_cluster_template(template_id)
         self.assertEqual(template_name, template['name'])
         self.assertDictContainsSubset(self.cluster_template, template)
 
     @test.attr(type='smoke')
     def test_cluster_template_delete(self):
-        template_id = self._create_cluster_template()[0]
+        template_id, _ = self._create_cluster_template()
 
         # delete the cluster template by id
-        resp = self.client.delete_cluster_template(template_id)[0]
-        self.assertEqual(204, resp.status)
+        self.client.delete_cluster_template(template_id)
         # TODO(ylobankov): check that cluster template is really deleted

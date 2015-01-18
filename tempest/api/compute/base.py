@@ -19,6 +19,7 @@ from tempest import clients
 from tempest.common.utils import data_utils
 from tempest import config
 from tempest import exceptions
+from tempest.openstack.common import excutils
 from tempest.openstack.common import log as logging
 import tempest.test
 
@@ -30,19 +31,19 @@ LOG = logging.getLogger(__name__)
 class BaseComputeTest(tempest.test.BaseTestCase):
     """Base test case class for all Compute API tests."""
 
-    _api_version = 3
+    _api_version = 2
     force_tenant_isolation = False
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         cls.set_network_resources()
-        super(BaseComputeTest, cls).setUpClass()
+        super(BaseComputeTest, cls).resource_setup()
 
         # TODO(andreaf) WE should care also for the alt_manager here
         # but only once client lazy load in the manager is done
-        os = cls.get_client_manager()
+        cls.os = cls.get_client_manager()
+        cls.multi_user = cls.check_multi_user()
 
-        cls.os = os
         cls.build_interval = CONF.compute.build_interval
         cls.build_timeout = CONF.compute.build_timeout
         cls.ssh_user = CONF.compute.ssh_user
@@ -54,7 +55,6 @@ class BaseComputeTest(tempest.test.BaseTestCase):
         cls.image_ssh_password = CONF.compute.image_ssh_password
         cls.servers = []
         cls.images = []
-        cls.multi_user = cls.get_multi_user()
         cls.security_groups = []
         cls.server_groups = []
 
@@ -67,6 +67,10 @@ class BaseComputeTest(tempest.test.BaseTestCase):
             cls.keypairs_client = cls.os.keypairs_client
             cls.security_groups_client = cls.os.security_groups_client
             cls.quotas_client = cls.os.quotas_client
+            # NOTE(mriedem): os-quota-class-sets is v2 API only
+            cls.quota_classes_client = cls.os.quota_classes_client
+            # NOTE(mriedem): os-networks is v2 API only
+            cls.networks_client = cls.os.networks_client
             cls.limits_client = cls.os.limits_client
             cls.volumes_extensions_client = cls.os.volumes_extensions_client
             cls.volumes_client = cls.os.volumes_client
@@ -81,70 +85,41 @@ class BaseComputeTest(tempest.test.BaseTestCase):
             cls.hypervisor_client = cls.os.hypervisor_client
             cls.certificates_client = cls.os.certificates_client
             cls.migrations_client = cls.os.migrations_client
-
-        elif cls._api_version == 3:
-            if not CONF.compute_feature_enabled.api_v3:
-                skip_msg = ("%s skipped as nova v3 api is not available" %
-                            cls.__name__)
-                raise cls.skipException(skip_msg)
-            cls.servers_client = cls.os.servers_v3_client
-            cls.images_client = cls.os.image_client
-            cls.flavors_client = cls.os.flavors_v3_client
-            cls.services_client = cls.os.services_v3_client
-            cls.extensions_client = cls.os.extensions_v3_client
-            cls.availability_zone_client = cls.os.availability_zone_v3_client
-            cls.interfaces_client = cls.os.interfaces_v3_client
-            cls.hypervisor_client = cls.os.hypervisor_v3_client
-            cls.keypairs_client = cls.os.keypairs_v3_client
-            cls.volumes_client = cls.os.volumes_client
-            cls.certificates_client = cls.os.certificates_v3_client
-            cls.keypairs_client = cls.os.keypairs_v3_client
-            cls.aggregates_client = cls.os.aggregates_v3_client
-            cls.hosts_client = cls.os.hosts_v3_client
-            cls.quotas_client = cls.os.quotas_v3_client
-            cls.version_client = cls.os.version_v3_client
-            cls.migrations_client = cls.os.migrations_v3_client
+            cls.security_group_default_rules_client = (
+                cls.os.security_group_default_rules_client)
         else:
             msg = ("Unexpected API version is specified (%s)" %
                    cls._api_version)
             raise exceptions.InvalidConfiguration(message=msg)
 
     @classmethod
-    def get_multi_user(cls):
-        multi_user = True
-        # Determine if there are two regular users that can be
-        # used in testing. If the test cases are allowed to create
-        # users (config.compute.allow_tenant_isolation is true,
-        # then we allow multi-user.
-        if not CONF.compute.allow_tenant_isolation:
-            user1 = CONF.identity.username
-            user2 = CONF.identity.alt_username
-            if not user2 or user1 == user2:
-                multi_user = False
-            else:
-                user2_password = CONF.identity.alt_password
-                user2_tenant_name = CONF.identity.alt_tenant_name
-                if not user2_password or not user2_tenant_name:
-                    msg = ("Alternate user specified but not alternate "
-                           "tenant or password: alt_tenant_name=%s "
-                           "alt_password=%s"
-                           % (user2_tenant_name, user2_password))
-                    raise exceptions.InvalidConfiguration(msg)
-        return multi_user
+    def check_multi_user(cls):
+        # We have a list of accounts now, so just checking if the list is gt 2
+        if not cls.isolated_creds.is_multi_user():
+            msg = "Not enough users available for multi-user testing"
+            raise exceptions.InvalidConfiguration(msg)
+        return True
 
     @classmethod
     def clear_servers(cls):
+        LOG.debug('Clearing servers: %s', ','.join(
+            server['id'] for server in cls.servers))
         for server in cls.servers:
             try:
                 cls.servers_client.delete_server(server['id'])
-            except Exception:
+            except exceptions.NotFound:
+                # Something else already cleaned up the server, nothing to be
+                # worried about
                 pass
+            except Exception:
+                LOG.exception('Deleting server %s failed' % server['id'])
 
         for server in cls.servers:
             try:
                 cls.servers_client.wait_for_server_termination(server['id'])
             except Exception:
-                pass
+                LOG.exception('Waiting for deletion of server %s failed'
+                              % server['id'])
 
     @classmethod
     def server_check_teardown(cls):
@@ -168,6 +143,7 @@ class BaseComputeTest(tempest.test.BaseTestCase):
 
     @classmethod
     def clear_images(cls):
+        LOG.debug('Clearing images: %s', ','.join(cls.images))
         for image_id in cls.images:
             try:
                 cls.images_client.delete_image(image_id)
@@ -179,6 +155,8 @@ class BaseComputeTest(tempest.test.BaseTestCase):
 
     @classmethod
     def clear_security_groups(cls):
+        LOG.debug('Clearing security groups: %s', ','.join(
+            str(sg['id']) for sg in cls.security_groups))
         for sg in cls.security_groups:
             try:
                 resp, body =\
@@ -193,6 +171,7 @@ class BaseComputeTest(tempest.test.BaseTestCase):
 
     @classmethod
     def clear_server_groups(cls):
+        LOG.debug('Clearing server groups: %s', ','.join(cls.server_groups))
         for server_group_id in cls.server_groups:
             try:
                 cls.client.delete_server_group(server_group_id)
@@ -204,13 +183,12 @@ class BaseComputeTest(tempest.test.BaseTestCase):
                               server_group_id)
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         cls.clear_images()
         cls.clear_servers()
         cls.clear_security_groups()
-        cls.clear_isolated_creds()
         cls.clear_server_groups()
-        super(BaseComputeTest, cls).tearDownClass()
+        super(BaseComputeTest, cls).resource_cleanup()
 
     @classmethod
     def create_test_server(cls, **kwargs):
@@ -236,15 +214,16 @@ class BaseComputeTest(tempest.test.BaseTestCase):
                 try:
                     cls.servers_client.wait_for_server_status(
                         server['id'], kwargs['wait_until'])
-                except Exception as ex:
-                    if ('preserve_server_on_error' not in kwargs
-                        or kwargs['preserve_server_on_error'] is False):
-                        for server in servers:
-                            try:
-                                cls.servers_client.delete_server(server['id'])
-                            except Exception:
-                                pass
-                    raise ex
+                except Exception:
+                    with excutils.save_and_reraise_exception():
+                        if ('preserve_server_on_error' not in kwargs
+                            or kwargs['preserve_server_on_error'] is False):
+                            for server in servers:
+                                try:
+                                    cls.servers_client.delete_server(
+                                        server['id'])
+                                except Exception:
+                                    pass
 
         cls.servers.extend(servers)
 
@@ -264,10 +243,10 @@ class BaseComputeTest(tempest.test.BaseTestCase):
         return resp, body
 
     @classmethod
-    def create_test_server_group(cls, name="", policy=[]):
+    def create_test_server_group(cls, name="", policy=None):
         if not name:
             name = data_utils.rand_name(cls.__name__ + "-Server-Group")
-        if not policy:
+        if policy is None:
             policy = ['affinity']
         resp, body = cls.servers_client.create_server_group(name, policy)
         cls.server_groups.append(body['id'])
@@ -314,20 +293,14 @@ class BaseComputeTest(tempest.test.BaseTestCase):
         if 'name' in kwargs:
             name = kwargs.pop('name')
 
-        if cls._api_version == 2:
-            resp, image = cls.images_client.create_image(server_id, name)
-        elif cls._api_version == 3:
-            resp, image = cls.servers_client.create_image(server_id, name)
+        resp, image = cls.images_client.create_image(server_id, name)
         image_id = data_utils.parse_image_id(resp['location'])
         cls.images.append(image_id)
 
         if 'wait_until' in kwargs:
             cls.images_client.wait_for_image_status(image_id,
                                                     kwargs['wait_until'])
-            if cls._api_version == 2:
-                resp, image = cls.images_client.get_image(image_id)
-            elif cls._api_version == 3:
-                resp, image = cls.images_client.get_image_meta(image_id)
+            resp, image = cls.images_client.get_image(image_id)
 
             if kwargs['wait_until'] == 'ACTIVE':
                 if kwargs.get('wait_for_server', True):
@@ -345,28 +318,17 @@ class BaseComputeTest(tempest.test.BaseTestCase):
             except Exception:
                 LOG.exception('Failed to delete server %s' % server_id)
         resp, server = cls.create_test_server(wait_until='ACTIVE', **kwargs)
-        if cls._api_version == 2:
-            cls.password = server['adminPass']
-        elif cls._api_version == 3:
-            cls.password = server['admin_password']
+        cls.password = server['adminPass']
         return server['id']
 
     @classmethod
     def delete_volume(cls, volume_id):
         """Deletes the given volume and waits for it to be gone."""
-        if cls._api_version == 2:
-            cls._delete_volume(cls.volumes_extensions_client, volume_id)
-        elif cls._api_version == 3:
-            cls._delete_volume(cls.volumes_client, volume_id)
+        cls._delete_volume(cls.volumes_extensions_client, volume_id)
 
 
 class BaseV2ComputeTest(BaseComputeTest):
     _api_version = 2
-    _interface = "json"
-
-
-class BaseV3ComputeTest(BaseComputeTest):
-    _api_version = 3
     _interface = "json"
 
 
@@ -375,43 +337,20 @@ class BaseComputeAdminTest(BaseComputeTest):
     _interface = "json"
 
     @classmethod
-    def setUpClass(cls):
-        super(BaseComputeAdminTest, cls).setUpClass()
-        if (CONF.compute.allow_tenant_isolation or
-            cls.force_tenant_isolation is True):
+    def resource_setup(cls):
+        super(BaseComputeAdminTest, cls).resource_setup()
+        try:
             creds = cls.isolated_creds.get_admin_creds()
-            cls.os_adm = clients.Manager(credentials=creds,
-                                         interface=cls._interface)
-        else:
-            try:
-                cls.os_adm = clients.ComputeAdminManager(
-                    interface=cls._interface)
-            except exceptions.InvalidCredentials:
-                msg = ("Missing Compute Admin API credentials "
-                       "in configuration.")
-                raise cls.skipException(msg)
+            cls.os_adm = clients.Manager(
+                credentials=creds, interface=cls._interface)
+        except NotImplementedError:
+            msg = ("Missing Compute Admin API credentials in configuration.")
+            raise cls.skipException(msg)
 
-        cls.fixed_network_name = CONF.compute.fixed_network_name
-
-        if cls._api_version == 3:
-            cls.servers_admin_client = cls.os_adm.servers_v3_client
-            cls.services_admin_client = cls.os_adm.services_v3_client
-            cls.availability_zone_admin_client = \
-                cls.os_adm.availability_zone_v3_client
-            cls.hypervisor_admin_client = cls.os_adm.hypervisor_v3_client
-            cls.flavors_admin_client = cls.os_adm.flavors_v3_client
-            cls.aggregates_admin_client = cls.os_adm.aggregates_v3_client
-            cls.hosts_admin_client = cls.os_adm.hosts_v3_client
-            cls.quotas_admin_client = cls.os_adm.quotas_v3_client
-            cls.agents_admin_client = cls.os_adm.agents_v3_client
-            cls.migrations_admin_client = cls.os_adm.migrations_v3_client
+        cls.availability_zone_admin_client = (
+            cls.os_adm.availability_zone_client)
 
 
 class BaseV2ComputeAdminTest(BaseComputeAdminTest):
     """Base test case class for Compute Admin V2 API tests."""
     _api_version = 2
-
-
-class BaseV3ComputeAdminTest(BaseComputeAdminTest):
-    """Base test case class for Compute Admin V3 API tests."""
-    _api_version = 3

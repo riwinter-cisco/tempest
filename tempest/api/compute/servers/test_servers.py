@@ -21,8 +21,8 @@ from tempest import test
 class ServersTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(ServersTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ServersTestJSON, cls).resource_setup()
         cls.client = cls.servers_client
 
     def tearDown(self):
@@ -124,7 +124,3 @@ class ServersTestJSON(base.BaseV2ComputeTest):
         self.client.wait_for_server_status(server['id'], 'ACTIVE')
         resp, server = self.client.get_server(server['id'])
         self.assertEqual('2001:2001::3', server['accessIPv6'])
-
-
-class ServersTestXML(ServersTestJSON):
-    _interface = 'xml'

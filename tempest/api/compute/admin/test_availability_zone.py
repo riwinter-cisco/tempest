@@ -17,16 +17,16 @@ from tempest.api.compute import base
 from tempest import test
 
 
-class AZAdminV3Test(base.BaseComputeAdminTest):
+class AZAdminV2TestJSON(base.BaseComputeAdminTest):
     """
     Tests Availability Zone API List
     """
-    _api_version = 3
+    _api_version = 2
 
     @classmethod
-    def setUpClass(cls):
-        super(AZAdminV3Test, cls).setUpClass()
-        cls.client = cls.os_adm.availability_zone_client
+    def resource_setup(cls):
+        super(AZAdminV2TestJSON, cls).resource_setup()
+        cls.client = cls.availability_zone_admin_client
 
     @test.attr(type='gate')
     def test_get_availability_zone_list(self):
@@ -42,11 +42,3 @@ class AZAdminV3Test(base.BaseComputeAdminTest):
             self.client.get_availability_zone_list_detail()
         self.assertEqual(200, resp.status)
         self.assertTrue(len(availability_zone) > 0)
-
-
-class AZAdminV2TestJSON(AZAdminV3Test):
-    _api_version = 2
-
-
-class AZAdminV2TestXML(AZAdminV2TestJSON):
-    _interface = 'xml'

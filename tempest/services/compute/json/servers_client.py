@@ -18,8 +18,8 @@ import json
 import time
 import urllib
 
-from tempest.api_schema.compute import servers as common_schema
-from tempest.api_schema.compute.v2 import servers as schema
+from tempest.api_schema.response.compute import servers as common_schema
+from tempest.api_schema.response.compute.v2 import servers as schema
 from tempest.common import rest_client
 from tempest.common import waiters
 from tempest import config
@@ -58,6 +58,7 @@ class ServersClientJSON(rest_client.RestClient):
         disk_config: Determines if user or admin controls disk configuration.
         return_reservation_id: Enable/Disable the return of reservation id
         block_device_mapping: Block device mapping for the server.
+        block_device_mapping_v2: Block device mapping V2 for the server.
         """
         post_body = {
             'name': name,
@@ -70,7 +71,8 @@ class ServersClientJSON(rest_client.RestClient):
                        'availability_zone', 'accessIPv4', 'accessIPv6',
                        'min_count', 'max_count', ('metadata', 'meta'),
                        ('OS-DCF:diskConfig', 'disk_config'),
-                       'return_reservation_id', 'block_device_mapping']:
+                       'return_reservation_id', 'block_device_mapping',
+                       'block_device_mapping_v2']:
             if isinstance(option, tuple):
                 post_param = option[0]
                 key = option[1]
@@ -80,6 +82,7 @@ class ServersClientJSON(rest_client.RestClient):
             value = kwargs.get(key)
             if value is not None:
                 post_body[post_param] = value
+
         post_body = {'server': post_body}
 
         if 'sched_hints' in kwargs:
@@ -93,7 +96,11 @@ class ServersClientJSON(rest_client.RestClient):
         # with return reservation id set True
         if 'reservation_id' in body:
             return resp, body
-        self.validate_response(schema.create_server, resp, body)
+        if CONF.compute_feature_enabled.enable_instance_password:
+            create_schema = schema.create_server_with_admin_pass
+        else:
+            create_schema = schema.create_server
+        self.validate_response(create_schema, resp, body)
         return resp, body['server']
 
     def update_server(self, server_id, name=None, meta=None, accessIPv4=None,
@@ -134,6 +141,7 @@ class ServersClientJSON(rest_client.RestClient):
         """Returns the details of an existing server."""
         resp, body = self.get("servers/%s" % str(server_id))
         body = json.loads(body)
+        self.validate_response(schema.get_server, resp, body)
         return resp, body['server']
 
     def delete_server(self, server_id):
@@ -163,14 +171,16 @@ class ServersClientJSON(rest_client.RestClient):
 
         resp, body = self.get(url)
         body = json.loads(body)
+        self.validate_response(schema.list_servers_detail, resp, body)
         return resp, body
 
     def wait_for_server_status(self, server_id, status, extra_timeout=0,
-                               raise_on_error=True):
+                               raise_on_error=True, ready_wait=True):
         """Waits for a server to reach a given status."""
         return waiters.wait_for_server_status(self, server_id, status,
                                               extra_timeout=extra_timeout,
-                                              raise_on_error=raise_on_error)
+                                              raise_on_error=raise_on_error,
+                                              ready_wait=ready_wait)
 
     def wait_for_server_termination(self, server_id, ignore_error=False):
         """Waits for server to reach termination."""
@@ -267,7 +277,12 @@ class ServersClientJSON(rest_client.RestClient):
         if 'disk_config' in kwargs:
             kwargs['OS-DCF:diskConfig'] = kwargs['disk_config']
             del kwargs['disk_config']
-        return self.action(server_id, 'rebuild', 'server', None, **kwargs)
+        if CONF.compute_feature_enabled.enable_instance_password:
+            rebuild_schema = schema.rebuild_server_with_admin_pass
+        else:
+            rebuild_schema = schema.rebuild_server
+        return self.action(server_id, 'rebuild', 'server',
+                           rebuild_schema, **kwargs)
 
     def resize(self, server_id, flavor_ref, **kwargs):
         """Changes the flavor of a server."""
@@ -371,7 +386,7 @@ class ServersClientJSON(rest_client.RestClient):
                                post_body)
         body = json.loads(body)
         self.validate_response(schema.attach_volume, resp, body)
-        return resp, body
+        return resp, body['volumeAttachment']
 
     def detach_volume(self, server_id, volume_id):
         """Detaches a volume from a server instance."""
@@ -379,6 +394,22 @@ class ServersClientJSON(rest_client.RestClient):
                                  (server_id, volume_id))
         self.validate_response(schema.detach_volume, resp, body)
         return resp, body
+
+    def get_volume_attachment(self, server_id, attach_id):
+        """Return details about the given volume attachment."""
+        resp, body = self.get('servers/%s/os-volume_attachments/%s' % (
+            str(server_id), attach_id))
+        body = json.loads(body)
+        self.validate_response(schema.get_volume_attachment, resp, body)
+        return resp, body['volumeAttachment']
+
+    def list_volume_attachments(self, server_id):
+        """Returns the list of volume attachments for a given instance."""
+        resp, body = self.get('servers/%s/os-volume_attachments' % (
+            str(server_id)))
+        body = json.loads(body)
+        self.validate_response(schema.list_volume_attachments, resp, body)
+        return resp, body['volumeAttachments']
 
     def add_security_group(self, server_id, name):
         """Adds a security group to the server."""
@@ -465,7 +496,8 @@ class ServersClientJSON(rest_client.RestClient):
 
     def rescue_server(self, server_id, **kwargs):
         """Rescue the provided server."""
-        return self.action(server_id, 'rescue', 'adminPass', None, **kwargs)
+        return self.action(server_id, 'rescue', 'adminPass',
+                           schema.rescue_server, **kwargs)
 
     def unrescue_server(self, server_id):
         """Unrescue the provided server."""
@@ -489,6 +521,7 @@ class ServersClientJSON(rest_client.RestClient):
         resp, body = self.get("servers/%s/os-instance-actions/%s" %
                               (str(server_id), str(request_id)))
         body = json.loads(body)
+        self.validate_response(schema.get_instance_action, resp, body)
         return resp, body['instanceAction']
 
     def force_delete_server(self, server_id, **kwargs):
@@ -541,6 +574,7 @@ class ServersClientJSON(rest_client.RestClient):
         """List the server-groups."""
         resp, body = self.get("os-server-groups")
         body = json.loads(body)
+        self.validate_response(schema.list_server_groups, resp, body)
         return resp, body['server_groups']
 
     def get_server_group(self, server_group_id):

@@ -25,8 +25,8 @@ class ServicesAdminTestJSON(base.BaseV2ComputeAdminTest):
     """
 
     @classmethod
-    def setUpClass(cls):
-        super(ServicesAdminTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ServicesAdminTestJSON, cls).resource_setup()
         cls.client = cls.os_adm.services_client
 
     @test.attr(type='gate')
@@ -76,7 +76,3 @@ class ServicesAdminTestJSON(base.BaseV2ComputeAdminTest):
         self.assertEqual(1, len(services))
         self.assertEqual(host_name, services[0]['host'])
         self.assertEqual(binary_name, services[0]['binary'])
-
-
-class ServicesAdminTestXML(ServicesAdminTestJSON):
-    _interface = 'xml'

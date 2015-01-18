@@ -15,7 +15,7 @@
 import cStringIO as StringIO
 
 from tempest import clients
-from tempest.common import isolated_creds
+from tempest.common import credentials
 from tempest.common.utils import data_utils
 from tempest import config
 from tempest import exceptions
@@ -31,23 +31,20 @@ class BaseImageTest(tempest.test.BaseTestCase):
     """Base test class for Image API tests."""
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         cls.set_network_resources()
-        super(BaseImageTest, cls).setUpClass()
+        super(BaseImageTest, cls).resource_setup()
         cls.created_images = []
         cls._interface = 'json'
-        cls.isolated_creds = isolated_creds.IsolatedCreds(
+        cls.isolated_creds = credentials.get_isolated_credentials(
             cls.__name__, network_resources=cls.network_resources)
         if not CONF.service_available.glance:
             skip_msg = ("%s skipped as glance is not available" % cls.__name__)
             raise cls.skipException(skip_msg)
-        if CONF.compute.allow_tenant_isolation:
-            cls.os = clients.Manager(cls.isolated_creds.get_primary_creds())
-        else:
-            cls.os = clients.Manager()
+        cls.os = clients.Manager(cls.isolated_creds.get_primary_creds())
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         for image_id in cls.created_images:
             try:
                 cls.client.delete_image(image_id)
@@ -57,7 +54,7 @@ class BaseImageTest(tempest.test.BaseTestCase):
         for image_id in cls.created_images:
                 cls.client.wait_for_resource_deletion(image_id)
         cls.isolated_creds.clear_isolated_creds()
-        super(BaseImageTest, cls).tearDownClass()
+        super(BaseImageTest, cls).resource_cleanup()
 
     @classmethod
     def create_image(cls, **kwargs):
@@ -79,8 +76,8 @@ class BaseImageTest(tempest.test.BaseTestCase):
 class BaseV1ImageTest(BaseImageTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(BaseV1ImageTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(BaseV1ImageTest, cls).resource_setup()
         cls.client = cls.os.image_client
         if not CONF.image_feature_enabled.api_v1:
             msg = "Glance API v1 not supported"
@@ -89,18 +86,15 @@ class BaseV1ImageTest(BaseImageTest):
 
 class BaseV1ImageMembersTest(BaseV1ImageTest):
     @classmethod
-    def setUpClass(cls):
-        super(BaseV1ImageMembersTest, cls).setUpClass()
-        if CONF.compute.allow_tenant_isolation:
-            cls.os_alt = clients.Manager(cls.isolated_creds.get_alt_creds())
-        else:
-            cls.os_alt = clients.AltManager()
+    def resource_setup(cls):
+        super(BaseV1ImageMembersTest, cls).resource_setup()
+        cls.os_alt = clients.Manager(cls.isolated_creds.get_alt_creds())
 
         cls.alt_img_cli = cls.os_alt.image_client
         cls.alt_tenant_id = cls.alt_img_cli.tenant_id
 
     def _create_image(self):
-        image_file = StringIO.StringIO('*' * 1024)
+        image_file = StringIO.StringIO(data_utils.random_bytes())
         resp, image = self.create_image(container_format='bare',
                                         disk_format='raw',
                                         is_public=False,
@@ -113,8 +107,8 @@ class BaseV1ImageMembersTest(BaseV1ImageTest):
 class BaseV2ImageTest(BaseImageTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(BaseV2ImageTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(BaseV2ImageTest, cls).resource_setup()
         cls.client = cls.os.image_client_v2
         if not CONF.image_feature_enabled.api_v2:
             msg = "Glance API v2 not supported"
@@ -124,13 +118,10 @@ class BaseV2ImageTest(BaseImageTest):
 class BaseV2MemberImageTest(BaseV2ImageTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(BaseV2MemberImageTest, cls).setUpClass()
-        if CONF.compute.allow_tenant_isolation:
-            creds = cls.isolated_creds.get_alt_creds()
-            cls.os_alt = clients.Manager(creds)
-        else:
-            cls.os_alt = clients.AltManager()
+    def resource_setup(cls):
+        super(BaseV2MemberImageTest, cls).resource_setup()
+        creds = cls.isolated_creds.get_alt_creds()
+        cls.os_alt = clients.Manager(creds)
         cls.os_img_client = cls.os.image_client_v2
         cls.alt_img_client = cls.os_alt.image_client_v2
         cls.alt_tenant_id = cls.alt_img_client.tenant_id

@@ -23,9 +23,8 @@ from tempest import test
 class StaticWebTest(base.BaseObjectTest):
 
     @classmethod
-    @test.safe_setup
-    def setUpClass(cls):
-        super(StaticWebTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(StaticWebTest, cls).resource_setup()
         cls.container_name = data_utils.rand_name(name="TestContainer")
 
         # This header should be posted on the container before every test
@@ -45,11 +44,10 @@ class StaticWebTest(base.BaseObjectTest):
             metadata_prefix="X-Container-")
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         if hasattr(cls, "container_name"):
             cls.delete_containers([cls.container_name])
-        cls.data.teardown_all()
-        super(StaticWebTest, cls).tearDownClass()
+        super(StaticWebTest, cls).resource_cleanup()
 
     @test.requires_ext(extension='staticweb', service='object')
     @test.attr('gate')
@@ -69,7 +67,6 @@ class StaticWebTest(base.BaseObjectTest):
         # we should retrieve the self.object_name file
         resp, body = self.custom_account_client.request("GET",
                                                         self.container_name)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         # This request is equivalent to GET object
         self.assertHeaders(resp, 'Object', 'GET')
         self.assertEqual(body, self.object_data)
@@ -94,7 +91,6 @@ class StaticWebTest(base.BaseObjectTest):
         # we should retrieve a listing of objects
         resp, body = self.custom_account_client.request("GET",
                                                         self.container_name)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         # The target of the request is not any Swift resource. Therefore, the
         # existence of response header is checked without a custom matcher.
         self.assertIn('content-length', resp)
@@ -133,7 +129,6 @@ class StaticWebTest(base.BaseObjectTest):
         # we should retrieve a listing of objects
         resp, body = self.custom_account_client.request("GET",
                                                         self.container_name)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertIn(self.object_name, body)
         css = '<link rel="stylesheet" type="text/css" href="listings.css" />'
         self.assertIn(css, body)

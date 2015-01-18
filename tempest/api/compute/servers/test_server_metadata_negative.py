@@ -22,8 +22,8 @@ from tempest import test
 class ServerMetadataNegativeTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(ServerMetadataNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ServerMetadataNegativeTestJSON, cls).resource_setup()
         cls.client = cls.servers_client
         cls.quotas = cls.quotas_client
         cls.tenant_id = cls.client.tenant_id
@@ -40,7 +40,7 @@ class ServerMetadataNegativeTestJSON(base.BaseV2ComputeTest):
         for sz in [256, 257, 511, 1023]:
             key = "k" * sz
             meta = {key: 'data1'}
-            self.assertRaises(exceptions.OverLimit,
+            self.assertRaises((exceptions.BadRequest, exceptions.OverLimit),
                               self.create_test_server,
                               meta=meta)
 
@@ -119,20 +119,25 @@ class ServerMetadataNegativeTestJSON(base.BaseV2ComputeTest):
 
     @test.attr(type=['negative', 'gate'])
     def test_metadata_items_limit(self):
-        # Raise a 413 OverLimit exception while exceeding metadata items limit
-        # for tenant.
+        # A 403 Forbidden or 413 Overlimit (old behaviour) exception
+        # will be raised while exceeding metadata items limit for
+        # tenant.
         _, quota_set = self.quotas.get_quota_set(self.tenant_id)
         quota_metadata = quota_set['metadata_items']
+        if quota_metadata == -1:
+            raise self.skipException("No limit for metadata_items")
+
         req_metadata = {}
         for num in range(1, quota_metadata + 2):
             req_metadata['key' + str(num)] = 'val' + str(num)
-        self.assertRaises(exceptions.OverLimit,
+        self.assertRaises((exceptions.OverLimit, exceptions.Unauthorized),
                           self.client.set_server_metadata,
                           self.server_id, req_metadata)
 
-        # Raise a 413 OverLimit exception while exceeding metadata items limit
-        # for tenant (update).
-        self.assertRaises(exceptions.OverLimit,
+        # A 403 Forbidden or 413 Overlimit (old behaviour) exception
+        # will be raised while exceeding metadata items limit for
+        # tenant.
+        self.assertRaises((exceptions.Unauthorized, exceptions.OverLimit),
                           self.client.update_server_metadata,
                           self.server_id, req_metadata)
 
@@ -153,7 +158,3 @@ class ServerMetadataNegativeTestJSON(base.BaseV2ComputeTest):
         self.assertRaises(exceptions.BadRequest,
                           self.client.set_server_metadata,
                           self.server_id, meta=meta, no_metadata_field=True)
-
-
-class ServerMetadataNegativeTestXML(ServerMetadataNegativeTestJSON):
-    _interface = 'xml'

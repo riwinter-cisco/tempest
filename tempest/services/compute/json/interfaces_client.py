@@ -16,9 +16,9 @@
 import json
 import time
 
-from tempest.api_schema.compute import interfaces as common_schema
-from tempest.api_schema.compute import servers as servers_schema
-from tempest.api_schema.compute.v2 import interfaces as schema
+from tempest.api_schema.response.compute import interfaces as common_schema
+from tempest.api_schema.response.compute import servers as servers_schema
+from tempest.api_schema.response.compute.v2 import interfaces as schema
 from tempest.common import rest_client
 from tempest import config
 from tempest import exceptions
@@ -79,9 +79,10 @@ class InterfacesClientJSON(rest_client.RestClient):
             timed_out = int(time.time()) - start >= self.build_timeout
 
             if interface_status != status and timed_out:
-                message = ('Interface %s failed to reach %s status within '
-                           'the required time (%s s).' %
-                           (port_id, status, self.build_timeout))
+                message = ('Interface %s failed to reach %s status '
+                           '(current %s) within the required time (%s s).' %
+                           (port_id, status, interface_status,
+                            self.build_timeout))
                 raise exceptions.TimeoutException(message)
 
         return resp, body

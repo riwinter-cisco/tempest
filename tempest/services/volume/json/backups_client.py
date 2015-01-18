@@ -23,13 +23,13 @@ from tempest import exceptions
 CONF = config.CONF
 
 
-class BackupsClientJSON(rest_client.RestClient):
+class BaseBackupsClientJSON(rest_client.RestClient):
     """
     Client class to send CRUD Volume backup API requests to a Cinder endpoint
     """
 
     def __init__(self, auth_provider):
-        super(BackupsClientJSON, self).__init__(auth_provider)
+        super(BaseBackupsClientJSON, self).__init__(auth_provider)
         self.service = CONF.volume.catalog_type
         self.build_interval = CONF.volume.build_interval
         self.build_timeout = CONF.volume.build_timeout
@@ -47,6 +47,7 @@ class BackupsClientJSON(rest_client.RestClient):
         post_body = json.dumps({'backup': post_body})
         resp, body = self.post('backups', post_body)
         body = json.loads(body)
+        self.expected_success(202, resp.status)
         return resp, body['backup']
 
     def restore_backup(self, backup_id, volume_id=None):
@@ -55,11 +56,13 @@ class BackupsClientJSON(rest_client.RestClient):
         post_body = json.dumps({'restore': post_body})
         resp, body = self.post('backups/%s/restore' % (backup_id), post_body)
         body = json.loads(body)
+        self.expected_success(202, resp.status)
         return resp, body['restore']
 
     def delete_backup(self, backup_id):
         """Delete a backup of volume."""
         resp, body = self.delete('backups/%s' % (str(backup_id)))
+        self.expected_success(202, resp.status)
         return resp, body
 
     def get_backup(self, backup_id):
@@ -67,6 +70,7 @@ class BackupsClientJSON(rest_client.RestClient):
         url = "backups/%s" % str(backup_id)
         resp, body = self.get(url)
         body = json.loads(body)
+        self.expected_success(200, resp.status)
         return resp, body['backup']
 
     def list_backups_with_detail(self):
@@ -74,6 +78,7 @@ class BackupsClientJSON(rest_client.RestClient):
         url = "backups/detail"
         resp, body = self.get(url)
         body = json.loads(body)
+        self.expected_success(200, resp.status)
         return resp, body['backups']
 
     def wait_for_backup_status(self, backup_id, status):
@@ -90,7 +95,12 @@ class BackupsClientJSON(rest_client.RestClient):
                 raise exceptions.VolumeBackupException(backup_id=backup_id)
 
             if int(time.time()) - start >= self.build_timeout:
-                message = ('Volume backup %s failed to reach %s status within '
-                           'the required time (%s s).' %
-                           (backup_id, status, self.build_timeout))
+                message = ('Volume backup %s failed to reach %s status '
+                           '(current %s) within the required time (%s s).' %
+                           (backup_id, status, backup_status,
+                            self.build_timeout))
                 raise exceptions.TimeoutException(message)
+
+
+class BackupsClientJSON(BaseBackupsClientJSON):
+    """Volume V1 Backups client"""

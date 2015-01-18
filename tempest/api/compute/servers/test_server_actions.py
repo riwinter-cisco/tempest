@@ -15,9 +15,9 @@
 
 import base64
 import logging
+import urlparse
 
 import testtools
-import urlparse
 
 from tempest.api.compute import base
 from tempest.common.utils import data_utils
@@ -52,9 +52,9 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
         super(ServerActionsTestJSON, self).tearDown()
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         cls.prepare_instance_network()
-        super(ServerActionsTestJSON, cls).setUpClass()
+        super(ServerActionsTestJSON, cls).resource_setup()
         cls.client = cls.servers_client
         cls.server_id = cls.rebuild_server(None)
 
@@ -75,9 +75,7 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
                                                       new_password)
             linux_client.validate_authentication()
 
-    @test.attr(type='smoke')
-    def test_reboot_server_hard(self):
-        # The server should be power cycled
+    def _test_reboot_server(self, reboot_type):
         if self.run_ssh:
             # Get the time the server was last rebooted,
             resp, server = self.client.get_server(self.server_id)
@@ -85,7 +83,7 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
                                                       self.password)
             boot_time = linux_client.get_boot_time()
 
-        resp, body = self.client.reboot(self.server_id, 'HARD')
+        resp, body = self.client.reboot(self.server_id, reboot_type)
         self.assertEqual(202, resp.status)
         self.client.wait_for_server_status(self.server_id, 'ACTIVE')
 
@@ -96,29 +94,17 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
             new_boot_time = linux_client.get_boot_time()
             self.assertTrue(new_boot_time > boot_time,
                             '%s > %s' % (new_boot_time, boot_time))
+
+    @test.attr(type='smoke')
+    def test_reboot_server_hard(self):
+        # The server should be power cycled
+        self._test_reboot_server('HARD')
 
     @test.skip_because(bug="1014647")
     @test.attr(type='smoke')
     def test_reboot_server_soft(self):
         # The server should be signaled to reboot gracefully
-        if self.run_ssh:
-            # Get the time the server was last rebooted,
-            resp, server = self.client.get_server(self.server_id)
-            linux_client = remote_client.RemoteClient(server, self.ssh_user,
-                                                      self.password)
-            boot_time = linux_client.get_boot_time()
-
-        resp, body = self.client.reboot(self.server_id, 'SOFT')
-        self.assertEqual(202, resp.status)
-        self.client.wait_for_server_status(self.server_id, 'ACTIVE')
-
-        if self.run_ssh:
-            # Log in and verify the boot time has changed
-            linux_client = remote_client.RemoteClient(server, self.ssh_user,
-                                                      self.password)
-            new_boot_time = linux_client.get_boot_time()
-            self.assertTrue(new_boot_time > boot_time,
-                            '%s > %s' % (new_boot_time, boot_time))
+        self._test_reboot_server('SOFT')
 
     @test.attr(type='smoke')
     def test_rebuild_server(self):
@@ -256,7 +242,10 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
         resp, server = self.client.get_server(self.server_id)
         self.assertEqual(previous_flavor_ref, server['flavor']['id'])
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.snapshot,
+                          'Snapshotting not available, backup not possible.')
     @test.attr(type='gate')
+    @test.services('image')
     def test_create_backup(self):
         # Positive test:create backup successfully and rotate backups correctly
         # create the first and the second backup
@@ -348,6 +337,8 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
         lines = len(output.split('\n'))
         self.assertEqual(lines, 10)
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.console_output,
+                          'Console output not supported.')
     @test.attr(type='gate')
     def test_get_console_output(self):
         # Positive test:Should be able to GET the console output
@@ -364,6 +355,27 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
 
         self.wait_for(self._get_output)
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.console_output,
+                          'Console output not supported.')
+    @test.attr(type='gate')
+    def test_get_console_output_with_unlimited_size(self):
+        _, server = self.create_test_server(wait_until='ACTIVE')
+
+        def _check_full_length_console_log():
+            _, output = self.servers_client.get_console_output(server['id'],
+                                                               None)
+            self.assertTrue(output, "Console output was empty.")
+            lines = len(output.split('\n'))
+
+            # NOTE: This test tries to get full length console log, and the
+            # length should be bigger than the one of test_get_console_output.
+            self.assertTrue(lines > 10, "Cannot get enough console log length."
+                                        " (lines: %s)" % lines)
+
+        self.wait_for(_check_full_length_console_log)
+
+    @testtools.skipUnless(CONF.compute_feature_enabled.console_output,
+                          'Console output not supported.')
     @test.attr(type='gate')
     def test_get_console_output_server_id_in_shutoff_status(self):
         # Positive test:Should be able to GET the console output
@@ -403,6 +415,8 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
         self.assertEqual(202, resp.status)
         self.client.wait_for_server_status(self.server_id, 'ACTIVE')
 
+    @testtools.skipUnless(CONF.compute_feature_enabled.shelve,
+                          'Shelve is not available.')
     @test.attr(type='gate')
     def test_shelve_unshelve_server(self):
         resp, server = self.client.shelve_server(self.server_id)
@@ -484,7 +498,3 @@ class ServerActionsTestJSON(base.BaseV2ComputeTest):
             self.assertEqual(console_type, body['type'])
             self.assertNotEqual('', body['url'])
             self._validate_url(body['url'])
-
-
-class ServerActionsTestXML(ServerActionsTestJSON):
-    _interface = 'xml'
