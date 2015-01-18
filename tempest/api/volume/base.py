@@ -32,9 +32,9 @@ class BaseVolumeTest(tempest.test.BaseTestCase):
     _interface = 'json'
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         cls.set_network_resources()
-        super(BaseVolumeTest, cls).setUpClass()
+        super(BaseVolumeTest, cls).resource_setup()
 
         if not CONF.service_available.cinder:
             skip_msg = ("%s skipped as Cinder is not available" % cls.__name__)
@@ -61,36 +61,44 @@ class BaseVolumeTest(tempest.test.BaseTestCase):
             cls.volumes_extension_client = cls.os.volumes_extension_client
             cls.availability_zone_client = (
                 cls.os.volume_availability_zone_client)
+            # Special fields and resp code for cinder v1
+            cls.special_fields = {'name_field': 'display_name',
+                                  'descrip_field': 'display_description'}
 
         elif cls._api_version == 2:
             if not CONF.volume_feature_enabled.api_v2:
                 msg = "Volume API v2 is disabled"
                 raise cls.skipException(msg)
+            cls.snapshots_client = cls.os.snapshots_v2_client
             cls.volumes_client = cls.os.volumes_v2_client
+            cls.volumes_extension_client = cls.os.volumes_v2_extension_client
+            cls.availability_zone_client = (
+                cls.os.volume_v2_availability_zone_client)
+            # Special fields and resp code for cinder v2
+            cls.special_fields = {'name_field': 'name',
+                                  'descrip_field': 'description'}
 
         else:
             msg = ("Invalid Cinder API version (%s)" % cls._api_version)
             raise exceptions.InvalidConfiguration(message=msg)
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         cls.clear_snapshots()
         cls.clear_volumes()
         cls.clear_isolated_creds()
-        super(BaseVolumeTest, cls).tearDownClass()
+        super(BaseVolumeTest, cls).resource_cleanup()
 
     @classmethod
     def create_volume(cls, size=1, **kwargs):
         """Wrapper utility that returns a test volume."""
-        vol_name = data_utils.rand_name('Volume')
-        if cls._api_version == 1:
-            resp, volume = cls.volumes_client.create_volume(
-                size, display_name=vol_name, **kwargs)
-            assert 200 == resp.status
-        elif cls._api_version == 2:
-            resp, volume = cls.volumes_client.create_volume(
-                size, name=vol_name, **kwargs)
-            assert 202 == resp.status
+        name = data_utils.rand_name('Volume')
+
+        name_field = cls.special_fields['name_field']
+
+        kwargs[name_field] = name
+        _, volume = cls.volumes_client.create_volume(size, **kwargs)
+
         cls.volumes.append(volume)
         cls.volumes_client.wait_for_volume_status(volume['id'], 'available')
         return volume
@@ -98,9 +106,8 @@ class BaseVolumeTest(tempest.test.BaseTestCase):
     @classmethod
     def create_snapshot(cls, volume_id=1, **kwargs):
         """Wrapper utility that returns a test snapshot."""
-        resp, snapshot = cls.snapshots_client.create_snapshot(volume_id,
-                                                              **kwargs)
-        assert 200 == resp.status
+        _, snapshot = cls.snapshots_client.create_snapshot(volume_id,
+                                                           **kwargs)
         cls.snapshots.append(snapshot)
         cls.snapshots_client.wait_for_snapshot_status(snapshot['id'],
                                                       'available')
@@ -138,31 +145,76 @@ class BaseVolumeTest(tempest.test.BaseTestCase):
                 pass
 
 
-class BaseVolumeV1Test(BaseVolumeTest):
-    _api_version = 1
-
-
-class BaseVolumeV2Test(BaseVolumeTest):
-    _api_version = 2
-
-
-class BaseVolumeV1AdminTest(BaseVolumeV1Test):
+class BaseVolumeAdminTest(BaseVolumeTest):
     """Base test case class for all Volume Admin API tests."""
     @classmethod
-    def setUpClass(cls):
-        super(BaseVolumeV1AdminTest, cls).setUpClass()
-        cls.adm_user = CONF.identity.admin_username
-        cls.adm_pass = CONF.identity.admin_password
-        cls.adm_tenant = CONF.identity.admin_tenant_name
-        if not all((cls.adm_user, cls.adm_pass, cls.adm_tenant)):
-            msg = ("Missing Volume Admin API credentials "
-                   "in configuration.")
+    def resource_setup(cls):
+        super(BaseVolumeAdminTest, cls).resource_setup()
+
+        try:
+            cls.adm_creds = cls.isolated_creds.get_admin_creds()
+            cls.os_adm = clients.Manager(
+                credentials=cls.adm_creds, interface=cls._interface)
+        except NotImplementedError:
+            msg = "Missing Volume Admin API credentials in configuration."
             raise cls.skipException(msg)
-        if CONF.compute.allow_tenant_isolation:
-            cls.os_adm = clients.Manager(cls.isolated_creds.get_admin_creds(),
-                                         interface=cls._interface)
-        else:
-            cls.os_adm = clients.AdminManager(interface=cls._interface)
-        cls.client = cls.os_adm.volume_types_client
-        cls.hosts_client = cls.os_adm.volume_hosts_client
-        cls.quotas_client = cls.os_adm.volume_quotas_client
+
+        cls.qos_specs = []
+
+        if cls._api_version == 1:
+            if not CONF.volume_feature_enabled.api_v1:
+                msg = "Volume API v1 is disabled"
+                raise cls.skipException(msg)
+            cls.volume_qos_client = cls.os_adm.volume_qos_client
+            cls.admin_volume_services_client = \
+                cls.os_adm.volume_services_client
+            cls.volume_types_client = cls.os_adm.volume_types_client
+            cls.admin_volume_client = cls.os_adm.volumes_client
+            cls.hosts_client = cls.os_adm.volume_hosts_client
+            cls.admin_snapshots_client = cls.os_adm.snapshots_client
+            cls.backups_adm_client = cls.os_adm.backups_client
+            cls.quotas_client = cls.os_adm.volume_quotas_client
+        elif cls._api_version == 2:
+            if not CONF.volume_feature_enabled.api_v2:
+                msg = "Volume API v2 is disabled"
+                raise cls.skipException(msg)
+            cls.volume_qos_client = cls.os_adm.volume_qos_v2_client
+            cls.admin_volume_services_client = \
+                cls.os_adm.volume_services_v2_client
+            cls.volume_types_client = cls.os_adm.volume_types_v2_client
+            cls.admin_volume_client = cls.os_adm.volumes_v2_client
+            cls.hosts_client = cls.os_adm.volume_hosts_v2_client
+            cls.admin_snapshots_client = cls.os_adm.snapshots_v2_client
+            cls.backups_adm_client = cls.os_adm.backups_v2_client
+            cls.quotas_client = cls.os_adm.volume_quotas_v2_client
+
+    @classmethod
+    def resource_cleanup(cls):
+        cls.clear_qos_specs()
+        super(BaseVolumeAdminTest, cls).resource_cleanup()
+
+    @classmethod
+    def create_test_qos_specs(cls, name=None, consumer=None, **kwargs):
+        """create a test Qos-Specs."""
+        name = name or data_utils.rand_name(cls.__name__ + '-QoS')
+        consumer = consumer or 'front-end'
+        _, qos_specs = cls.volume_qos_client.create_qos(name, consumer,
+                                                        **kwargs)
+        cls.qos_specs.append(qos_specs['id'])
+        return qos_specs
+
+    @classmethod
+    def clear_qos_specs(cls):
+        for qos_id in cls.qos_specs:
+            try:
+                cls.volume_qos_client.delete_qos(qos_id)
+            except exceptions.NotFound:
+                # The qos_specs may have already been deleted which is OK.
+                pass
+
+        for qos_id in cls.qos_specs:
+            try:
+                cls.volume_qos_client.wait_for_resource_deletion(qos_id)
+            except exceptions.NotFound:
+                # The qos_specs may have already been deleted which is OK.
+                pass

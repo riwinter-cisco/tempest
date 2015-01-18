@@ -23,12 +23,14 @@ LOG = logging.getLogger(__name__)
 
 class NovaKeyPairResourcesYAMLTest(base.BaseOrchestrationTest):
     _tpl_type = 'yaml'
+    _resource = 'resources'
+    _type = 'type'
 
     @classmethod
-    def setUpClass(cls):
-        super(NovaKeyPairResourcesYAMLTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(NovaKeyPairResourcesYAMLTest, cls).resource_setup()
         cls.stack_name = data_utils.rand_name('heat')
-        template = cls.load_template('nova_keypair', ext=cls._tpl_type)
+        template = cls.read_template('nova_keypair', ext=cls._tpl_type)
 
         # create the stack, avoid any duplicated key.
         cls.stack_identifier = cls.create_stack(
@@ -46,11 +48,18 @@ class NovaKeyPairResourcesYAMLTest(base.BaseOrchestrationTest):
         for resource in resources:
             cls.test_resources[resource['logical_resource_id']] = resource
 
-    @test.attr(type='slow')
+    @test.attr(type='gate')
     def test_created_resources(self):
         """Verifies created keypair resource."""
-        resources = [('KeyPairSavePrivate', 'OS::Nova::KeyPair'),
-                     ('KeyPairDontSavePrivate', 'OS::Nova::KeyPair')]
+
+        nova_keypair_template = self.load_template('nova_keypair',
+                                                   ext=self._tpl_type)
+        resources = [('KeyPairSavePrivate',
+                      nova_keypair_template[self._resource][
+                          'KeyPairSavePrivate'][self._type]),
+                     ('KeyPairDontSavePrivate',
+                      nova_keypair_template[self._resource][
+                          'KeyPairDontSavePrivate'][self._type])]
 
         for resource_name, resource_type in resources:
             resource = self.test_resources.get(resource_name, None)
@@ -59,10 +68,9 @@ class NovaKeyPairResourcesYAMLTest(base.BaseOrchestrationTest):
             self.assertEqual(resource_type, resource['resource_type'])
             self.assertEqual('CREATE_COMPLETE', resource['resource_status'])
 
-    @test.attr(type='slow')
+    @test.attr(type='gate')
     def test_stack_keypairs_output(self):
-        resp, stack = self.client.get_stack(self.stack_name)
-        self.assertEqual('200', resp['status'])
+        _, stack = self.client.get_stack(self.stack_name)
         self.assertIsInstance(stack, dict)
 
         output_map = {}
@@ -85,3 +93,5 @@ class NovaKeyPairResourcesYAMLTest(base.BaseOrchestrationTest):
 
 class NovaKeyPairResourcesAWSTest(NovaKeyPairResourcesYAMLTest):
     _tpl_type = 'json'
+    _resource = 'Resources'
+    _type = 'Type'

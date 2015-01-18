@@ -24,9 +24,8 @@ class ListServersNegativeTestJSON(base.BaseV2ComputeTest):
     force_tenant_isolation = True
 
     @classmethod
-    @test.safe_setup
-    def setUpClass(cls):
-        super(ListServersNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ListServersNegativeTestJSON, cls).resource_setup()
         cls.client = cls.servers_client
 
         # The following servers are created for use
@@ -148,7 +147,3 @@ class ListServersNegativeTestJSON(base.BaseV2ComputeTest):
                   if srv['id'] in deleted_ids]
         self.assertEqual('200', resp['status'])
         self.assertEqual([], actual)
-
-
-class ListServersNegativeTestXML(ListServersNegativeTestJSON):
-    _interface = 'xml'

@@ -47,19 +47,20 @@ class ImagesOneServerTestJSON(base.BaseV2ComputeTest):
             self.__class__.server_id = self.rebuild_server(self.server_id)
 
     @classmethod
-    def setUpClass(cls):
-        super(ImagesOneServerTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ImagesOneServerTestJSON, cls).resource_setup()
         cls.client = cls.images_client
         if not CONF.service_available.glance:
             skip_msg = ("%s skipped as glance is not available" % cls.__name__)
             raise cls.skipException(skip_msg)
 
-        try:
-            resp, server = cls.create_test_server(wait_until='ACTIVE')
-            cls.server_id = server['id']
-        except Exception:
-            cls.tearDownClass()
-            raise
+        if not CONF.compute_feature_enabled.snapshot:
+            skip_msg = ("%s skipped as instance snapshotting is not supported"
+                        % cls.__name__)
+            raise cls.skipException(skip_msg)
+
+        resp, server = cls.create_test_server(wait_until='ACTIVE')
+        cls.server_id = server['id']
 
     def _get_default_flavor_disk_size(self, flavor_id):
         resp, flavor = self.flavors_client.get_flavor_details(flavor_id)
@@ -98,18 +99,14 @@ class ImagesOneServerTestJSON(base.BaseV2ComputeTest):
 
     @test.attr(type=['gate'])
     def test_create_image_specify_multibyte_character_image_name(self):
-        if self.__class__._interface == "xml":
-            # NOTE(sdague): not entirely accurage, but we'd need a ton of work
-            # in our XML client to make this good
-            raise self.skipException("Not testable in XML")
         # prefix character is:
         # http://www.fileformat.info/info/unicode/char/1F4A9/index.htm
-        utf8_name = data_utils.rand_name(u'\xF0\x9F\x92\xA9')
+
+        # We use a string with 3 byte utf-8 character due to bug
+        # #1370954 in glance which will 500 if mysql is used as the
+        # backend and it attempts to store a 4 byte utf-8 character
+        utf8_name = data_utils.rand_name('\xe2\x82\xa1')
         resp, body = self.client.create_image(self.server_id, utf8_name)
         image_id = data_utils.parse_image_id(resp['location'])
         self.addCleanup(self.client.delete_image, image_id)
         self.assertEqual('202', resp['status'])
-
-
-class ImagesOneServerTestXML(ImagesOneServerTestJSON):
-    _interface = 'xml'

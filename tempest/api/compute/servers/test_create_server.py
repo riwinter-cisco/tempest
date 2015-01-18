@@ -31,9 +31,9 @@ class ServersTestJSON(base.BaseV2ComputeTest):
     disk_config = 'AUTO'
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         cls.prepare_instance_network()
-        super(ServersTestJSON, cls).setUpClass()
+        super(ServersTestJSON, cls).resource_setup()
         cls.meta = {'hello': 'world'}
         cls.accessIPv4 = '1.1.1.1'
         cls.accessIPv6 = '0000:0000:0000:0000:0000:babe:220.12.22.2'
@@ -42,6 +42,7 @@ class ServersTestJSON(base.BaseV2ComputeTest):
         personality = [{'path': '/test.txt',
                        'contents': base64.b64encode(file_contents)}]
         cls.client = cls.servers_client
+        cls.network_client = cls.os.network_client
         cli_resp = cls.create_test_server(name=cls.name,
                                           meta=cls.meta,
                                           accessIPv4=cls.accessIPv4,
@@ -102,7 +103,6 @@ class ServersTestJSON(base.BaseV2ComputeTest):
                                                   self.password)
         self.assertTrue(linux_client.hostname_equals_servername(self.name))
 
-    @test.skip_because(bug="1306367", interface="xml")
     @test.attr(type='gate')
     def test_create_server_with_scheduler_hint_group(self):
         # Create a server with the scheduler hint "group".
@@ -124,14 +124,70 @@ class ServersTestJSON(base.BaseV2ComputeTest):
         self.assertEqual(200, resp.status)
         self.assertIn(server['id'], server_group['members'])
 
+    @testtools.skipUnless(CONF.service_available.neutron,
+                          'Neutron service must be available.')
+    def test_verify_multiple_nics_order(self):
+        # Verify that the networks order given at the server creation is
+        # preserved within the server.
+        name_net1 = data_utils.rand_name(self.__class__.__name__)
+        net1 = self.network_client.create_network(name=name_net1)
+        self.addCleanup(self.network_client.delete_network,
+                        net1['network']['id'])
+
+        name_net2 = data_utils.rand_name(self.__class__.__name__)
+        net2 = self.network_client.create_network(name=name_net2)
+        self.addCleanup(self.network_client.delete_network,
+                        net2['network']['id'])
+
+        subnet1 = self.network_client.create_subnet(
+            network_id=net1['network']['id'],
+            cidr='19.80.0.0/24',
+            ip_version=4)
+        self.addCleanup(self.network_client.delete_subnet,
+                        subnet1['subnet']['id'])
+
+        subnet2 = self.network_client.create_subnet(
+            network_id=net2['network']['id'],
+            cidr='19.86.0.0/24',
+            ip_version=4)
+        self.addCleanup(self.network_client.delete_subnet,
+                        subnet2['subnet']['id'])
+
+        networks = [{'uuid': net1['network']['id']},
+                    {'uuid': net2['network']['id']}]
+
+        _, server_multi_nics = self.create_test_server(
+            networks=networks, wait_until='ACTIVE')
+
+        # Cleanup server; this is needed in the test case because with the LIFO
+        # nature of the cleanups, if we don't delete the server first, the port
+        # will still be part of the subnet and we'll get a 409 from Neutron
+        # when trying to delete the subnet. The tear down in the base class
+        # will try to delete the server and get a 404 but it's ignored so
+        # we're OK.
+        def cleanup_server():
+            self.client.delete_server(server_multi_nics['id'])
+            self.client.wait_for_server_termination(server_multi_nics['id'])
+
+        self.addCleanup(cleanup_server)
+
+        _, addresses = self.client.list_addresses(server_multi_nics['id'])
+
+        expected_addr = ['19.80.0.2', '19.86.0.2']
+
+        addr = [addresses[name_net1][0]['addr'],
+                addresses[name_net2][0]['addr']]
+
+        self.assertEqual(expected_addr, addr)
+
 
 class ServersWithSpecificFlavorTestJSON(base.BaseV2ComputeAdminTest):
     disk_config = 'AUTO'
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         cls.prepare_instance_network()
-        super(ServersWithSpecificFlavorTestJSON, cls).setUpClass()
+        super(ServersWithSpecificFlavorTestJSON, cls).resource_setup()
         cls.flavor_client = cls.os_adm.flavors_client
         cls.client = cls.servers_client
 
@@ -214,16 +270,8 @@ class ServersTestManualDisk(ServersTestJSON):
     disk_config = 'MANUAL'
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
         if not CONF.compute_feature_enabled.disk_config:
             msg = "DiskConfig extension not enabled."
             raise cls.skipException(msg)
-        super(ServersTestManualDisk, cls).setUpClass()
-
-
-class ServersTestXML(ServersTestJSON):
-    _interface = 'xml'
-
-
-class ServersWithSpecificFlavorTestXML(ServersWithSpecificFlavorTestJSON):
-    _interface = 'xml'
+        super(ServersTestManualDisk, cls).resource_setup()

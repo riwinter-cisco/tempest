@@ -13,45 +13,43 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
 import copy
 import datetime
 import exceptions
 import re
 import urlparse
 
+import six
+
 from tempest import config
+from tempest.openstack.common import log as logging
 from tempest.services.identity.json import identity_client as json_id
 from tempest.services.identity.v3.json import identity_client as json_v3id
-from tempest.services.identity.v3.xml import identity_client as xml_v3id
-from tempest.services.identity.xml import identity_client as xml_id
 
-from tempest.openstack.common import log as logging
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
+@six.add_metaclass(abc.ABCMeta)
 class AuthProvider(object):
     """
     Provide authentication
     """
 
-    def __init__(self, credentials, client_type='tempest',
-                 interface=None):
+    def __init__(self, credentials, interface=None):
         """
         :param credentials: credentials for authentication
-        :param client_type: 'tempest' or 'official'
         :param interface: 'json' or 'xml'. Applicable for tempest client only
+            (deprecated: only json now supported)
         """
         credentials = self._convert_credentials(credentials)
         if self.check_credentials(credentials):
             self.credentials = credentials
         else:
             raise TypeError("Invalid credentials")
-        self.client_type = client_type
-        self.interface = interface
-        if self.client_type == 'tempest' and self.interface is None:
-            self.interface = 'json'
+        self.interface = 'json'
         self.cache = None
         self.alt_auth_data = None
         self.alt_part = None
@@ -64,24 +62,26 @@ class AuthProvider(object):
             return credentials
 
     def __str__(self):
-        return "Creds :{creds}, client type: {client_type}, interface: " \
-               "{interface}, cached auth data: {cache}".format(
-                   creds=self.credentials, client_type=self.client_type,
-                   interface=self.interface, cache=self.cache
-               )
+        return "Creds :{creds}, interface: {interface}, " \
+               "cached auth data: {cache}".format(
+                   creds=self.credentials, interface=self.interface,
+                   cache=self.cache)
 
+    @abc.abstractmethod
     def _decorate_request(self, filters, method, url, headers=None, body=None,
                           auth_data=None):
         """
         Decorate request with authentication data
         """
-        raise NotImplementedError
+        return
 
+    @abc.abstractmethod
     def _get_auth(self):
-        raise NotImplementedError
+        return
 
+    @abc.abstractmethod
     def _fill_credentials(self, auth_data_body):
-        raise NotImplementedError
+        return
 
     def fill_credentials(self):
         """
@@ -130,8 +130,9 @@ class AuthProvider(object):
         self.cache = None
         self.credentials.reset()
 
+    @abc.abstractmethod
     def is_expired(self, auth_data):
-        raise NotImplementedError
+        return
 
     def auth_request(self, method, url, headers=None, body=None, filters=None):
         """
@@ -188,20 +189,20 @@ class AuthProvider(object):
         self.alt_part = request_part
         self.alt_auth_data = auth_data
 
+    @abc.abstractmethod
     def base_url(self, filters, auth_data=None):
         """
         Extracts the base_url based on provided filters
         """
-        raise NotImplementedError
+        return
 
 
 class KeystoneAuthProvider(AuthProvider):
 
     token_expiry_threshold = datetime.timedelta(seconds=60)
 
-    def __init__(self, credentials, client_type='tempest', interface=None):
-        super(KeystoneAuthProvider, self).__init__(credentials, client_type,
-                                                   interface)
+    def __init__(self, credentials, interface=None):
+        super(KeystoneAuthProvider, self).__init__(credentials, interface)
         self.auth_client = self._auth_client()
 
     def _decorate_request(self, filters, method, url, headers=None, body=None,
@@ -225,23 +226,22 @@ class KeystoneAuthProvider(AuthProvider):
         # no change to method or body
         return str(_url), _headers, body
 
+    @abc.abstractmethod
     def _auth_client(self):
-        raise NotImplementedError
+        return
 
+    @abc.abstractmethod
     def _auth_params(self):
-        raise NotImplementedError
+        return
 
     def _get_auth(self):
         # Bypasses the cache
-        if self.client_type == 'tempest':
-            auth_func = getattr(self.auth_client, 'get_token')
-            auth_params = self._auth_params()
+        auth_func = getattr(self.auth_client, 'get_token')
+        auth_params = self._auth_params()
 
-            # returns token, auth_data
-            token, auth_data = auth_func(**auth_params)
-            return token, auth_data
-        else:
-            raise NotImplementedError
+        # returns token, auth_data
+        token, auth_data = auth_func(**auth_params)
+        return token, auth_data
 
     def get_token(self):
         return self.auth_data[0]
@@ -252,23 +252,14 @@ class KeystoneV2AuthProvider(KeystoneAuthProvider):
     EXPIRY_DATE_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 
     def _auth_client(self):
-        if self.client_type == 'tempest':
-            if self.interface == 'json':
-                return json_id.TokenClientJSON()
-            else:
-                return xml_id.TokenClientXML()
-        else:
-            raise NotImplementedError
+        return json_id.TokenClientJSON()
 
     def _auth_params(self):
-        if self.client_type == 'tempest':
-            return dict(
-                user=self.credentials.username,
-                password=self.credentials.password,
-                tenant=self.credentials.tenant_name,
-                auth_data=True)
-        else:
-            raise NotImplementedError
+        return dict(
+            user=self.credentials.username,
+            password=self.credentials.password,
+            tenant=self.credentials.tenant_name,
+            auth_data=True)
 
     def _fill_credentials(self, auth_data_body):
         tenant = auth_data_body['token']['tenant']
@@ -321,7 +312,7 @@ class KeystoneV2AuthProvider(KeystoneAuthProvider):
             if noversion_path != "":
                 path += "/" + noversion_path
             _base_url = _base_url.replace(parts.path, path)
-        if filters.get('skip_path', None) is not None:
+        if filters.get('skip_path', None) is not None and parts.path != '':
             _base_url = _base_url.replace(parts.path, "/")
 
         return _base_url
@@ -339,24 +330,15 @@ class KeystoneV3AuthProvider(KeystoneAuthProvider):
     EXPIRY_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%fZ'
 
     def _auth_client(self):
-        if self.client_type == 'tempest':
-            if self.interface == 'json':
-                return json_v3id.V3TokenClientJSON()
-            else:
-                return xml_v3id.V3TokenClientXML()
-        else:
-            raise NotImplementedError
+        return json_v3id.V3TokenClientJSON()
 
     def _auth_params(self):
-        if self.client_type == 'tempest':
-            return dict(
-                user=self.credentials.username,
-                password=self.credentials.password,
-                tenant=self.credentials.tenant_name,
-                domain=self.credentials.user_domain_name,
-                auth_data=True)
-        else:
-            raise NotImplementedError
+        return dict(
+            user=self.credentials.username,
+            password=self.credentials.password,
+            tenant=self.credentials.tenant_name,
+            domain=self.credentials.user_domain_name,
+            auth_data=True)
 
     def _fill_credentials(self, auth_data_body):
         # project or domain, depending on the scope
@@ -579,7 +561,10 @@ class Credentials(object):
             raise exceptions.InvalidCredentials()
         creds = cls._get_default(credentials_type)
         if not creds.is_valid():
-            raise exceptions.InvalidConfiguration()
+            msg = ("The %s credentials are incorrectly set in the config file."
+                   " Double check that all required values are assigned" %
+                   credentials_type)
+            raise exceptions.InvalidConfiguration(msg)
         return creds
 
     @classmethod

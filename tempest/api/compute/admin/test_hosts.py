@@ -24,8 +24,8 @@ class HostsAdminTestJSON(base.BaseV2ComputeAdminTest):
     """
 
     @classmethod
-    def setUpClass(cls):
-        super(HostsAdminTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(HostsAdminTestJSON, cls).resource_setup()
         cls.client = cls.os_adm.hosts_client
 
     @test.attr(type='gate')
@@ -84,7 +84,3 @@ class HostsAdminTestJSON(base.BaseV2ComputeAdminTest):
             self.assertIsNotNone(host_resource['memory_mb'])
             self.assertIsNotNone(host_resource['project'])
             self.assertEqual(hostname, host_resource['host'])
-
-
-class HostsAdminTestXML(HostsAdminTestJSON):
-    _interface = 'xml'

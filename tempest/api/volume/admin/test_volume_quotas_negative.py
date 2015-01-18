@@ -18,21 +18,20 @@ from tempest import exceptions
 from tempest import test
 
 
-class VolumeQuotasNegativeTestJSON(base.BaseVolumeV1AdminTest):
+class BaseVolumeQuotasNegativeV2TestJSON(base.BaseVolumeAdminTest):
     _interface = "json"
     force_tenant_isolation = True
 
     @classmethod
-    @test.safe_setup
-    def setUpClass(cls):
-        super(VolumeQuotasNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(BaseVolumeQuotasNegativeV2TestJSON, cls).resource_setup()
         demo_user = cls.isolated_creds.get_primary_creds()
         cls.demo_tenant_id = demo_user.tenant_id
         cls.shared_quota_set = {'gigabytes': 3, 'volumes': 1, 'snapshots': 1}
 
         # NOTE(gfidente): no need to restore original quota set
         # after the tests as they only work with tenant isolation.
-        resp, quota_set = cls.quotas_client.update_quota_set(
+        _, quota_set = cls.quotas_client.update_quota_set(
             cls.demo_tenant_id,
             **cls.shared_quota_set)
 
@@ -63,7 +62,7 @@ class VolumeQuotasNegativeTestJSON(base.BaseVolumeV1AdminTest):
                         **self.shared_quota_set)
 
         new_quota_set = {'gigabytes': 2, 'volumes': 2, 'snapshots': 1}
-        resp, quota_set = self.quotas_client.update_quota_set(
+        _, quota_set = self.quotas_client.update_quota_set(
             self.demo_tenant_id,
             **new_quota_set)
         self.assertRaises(exceptions.OverLimit,
@@ -71,7 +70,7 @@ class VolumeQuotasNegativeTestJSON(base.BaseVolumeV1AdminTest):
                           size=1)
 
         new_quota_set = {'gigabytes': 2, 'volumes': 1, 'snapshots': 2}
-        resp, quota_set = self.quotas_client.update_quota_set(
+        _, quota_set = self.quotas_client.update_quota_set(
             self.demo_tenant_id,
             **self.shared_quota_set)
         self.assertRaises(exceptions.OverLimit,
@@ -79,5 +78,5 @@ class VolumeQuotasNegativeTestJSON(base.BaseVolumeV1AdminTest):
                           self.volume['id'])
 
 
-class VolumeQuotasNegativeTestXML(VolumeQuotasNegativeTestJSON):
-    _interface = "xml"
+class VolumeQuotasNegativeV1TestJSON(BaseVolumeQuotasNegativeV2TestJSON):
+    _api_version = 1

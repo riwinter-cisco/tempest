@@ -15,23 +15,15 @@
 
 import json
 
-from tempest.common import rest_client
-from tempest import config
-
-CONF = config.CONF
+from tempest.services.identity.v3.json import base
 
 
-class EndPointClientJSON(rest_client.RestClient):
-
-    def __init__(self, auth_provider):
-        super(EndPointClientJSON, self).__init__(auth_provider)
-        self.service = CONF.identity.catalog_type
-        self.endpoint_url = 'adminURL'
-        self.api_version = "v3"
+class EndPointClientJSON(base.IdentityV3Client):
 
     def list_endpoints(self):
         """GET endpoints."""
         resp, body = self.get('endpoints')
+        self.expected_success(200, resp.status)
         body = json.loads(body)
         return resp, body['endpoints']
 
@@ -56,6 +48,7 @@ class EndPointClientJSON(rest_client.RestClient):
         }
         post_body = json.dumps({'endpoint': post_body})
         resp, body = self.post('endpoints', post_body)
+        self.expected_success(201, resp.status)
         body = json.loads(body)
         return resp, body['endpoint']
 
@@ -82,10 +75,12 @@ class EndPointClientJSON(rest_client.RestClient):
             post_body['enabled'] = enabled
         post_body = json.dumps({'endpoint': post_body})
         resp, body = self.patch('endpoints/%s' % endpoint_id, post_body)
+        self.expected_success(200, resp.status)
         body = json.loads(body)
         return resp, body['endpoint']
 
     def delete_endpoint(self, endpoint_id):
         """Delete endpoint."""
         resp_header, resp_body = self.delete('endpoints/%s' % endpoint_id)
+        self.expected_success(204, resp_header.status)
         return resp_header, resp_body

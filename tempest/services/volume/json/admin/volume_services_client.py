@@ -22,10 +22,10 @@ from tempest import config
 CONF = config.CONF
 
 
-class VolumesServicesClientJSON(rest_client.RestClient):
+class BaseVolumesServicesClientJSON(rest_client.RestClient):
 
     def __init__(self, auth_provider):
-        super(VolumesServicesClientJSON, self).__init__(auth_provider)
+        super(BaseVolumesServicesClientJSON, self).__init__(auth_provider)
         self.service = CONF.volume.catalog_type
 
     def list_services(self, params=None):
@@ -35,4 +35,9 @@ class VolumesServicesClientJSON(rest_client.RestClient):
 
         resp, body = self.get(url)
         body = json.loads(body)
+        self.expected_success(200, resp.status)
         return resp, body['services']
+
+
+class VolumesServicesClientJSON(BaseVolumesServicesClientJSON):
+    """Volume V1 volume services client"""

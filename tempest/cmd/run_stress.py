@@ -18,12 +18,13 @@ import argparse
 import inspect
 import json
 import sys
-from testtools import testsuite
 try:
     from unittest import loader
 except ImportError:
     # unittest in python 2.6 does not contain loader, so uses unittest2
     from unittest2 import loader
+
+from testtools import testsuite
 
 from tempest.openstack.common import log as logging
 from tempest.stress import driver
@@ -101,9 +102,11 @@ def main():
                                       call_inherited=ns.call_inherited)
 
     if ns.serial:
+        # Duration is total time
+        duration = ns.duration / len(tests)
         for test in tests:
             step_result = driver.stress_openstack([test],
-                                                  ns.duration,
+                                                  duration,
                                                   ns.number,
                                                   ns.stop)
             # NOTE(mkoderer): we just save the last result code

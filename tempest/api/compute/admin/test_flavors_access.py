@@ -26,8 +26,8 @@ class FlavorsAccessTestJSON(base.BaseV2ComputeAdminTest):
     """
 
     @classmethod
-    def setUpClass(cls):
-        super(FlavorsAccessTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(FlavorsAccessTestJSON, cls).resource_setup()
         if not test.is_extension_enabled('OS-FLV-EXT-DATA', 'compute'):
             msg = "OS-FLV-EXT-DATA extension not enabled."
             raise cls.skipException(msg)
@@ -96,7 +96,3 @@ class FlavorsAccessTestJSON(base.BaseV2ComputeAdminTest):
         resp, flavors = self.flavors_client.list_flavors_with_detail()
         self.assertEqual(resp.status, 200)
         self.assertNotIn(new_flavor['id'], map(lambda x: x['id'], flavors))
-
-
-class FlavorsAdminTestXML(FlavorsAccessTestJSON):
-    _interface = 'xml'

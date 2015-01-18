@@ -12,6 +12,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from tempest_lib import exceptions
 
 from tempest.common.utils import data_utils
 from tempest import config
@@ -25,7 +26,7 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-class TestLargeOpsScenario(manager.NetworkScenarioTest):
+class TestLargeOpsScenario(manager.ScenarioTest):
 
     """
     Test large operations.
@@ -38,34 +39,68 @@ class TestLargeOpsScenario(manager.NetworkScenarioTest):
     """
 
     @classmethod
-    def setUpClass(cls):
+    def resource_setup(cls):
+        if CONF.scenario.large_ops_number < 1:
+            raise cls.skipException("large_ops_number not set to multiple "
+                                    "instances")
         cls.set_network_resources()
-        super(TestLargeOpsScenario, cls).setUpClass()
+        super(TestLargeOpsScenario, cls).resource_setup()
+        # list of cleanup calls to be executed in reverse order
+        cls._cleanup_resources = []
+
+    @classmethod
+    def resource_cleanup(cls):
+        while cls._cleanup_resources:
+            function, args, kwargs = cls._cleanup_resources.pop(-1)
+            try:
+                function(*args, **kwargs)
+            except exceptions.NotFound:
+                pass
+        super(TestLargeOpsScenario, cls).resource_cleanup()
+
+    @classmethod
+    def addCleanupClass(cls, function, *arguments, **keywordArguments):
+        cls._cleanup_resources.append((function, arguments, keywordArguments))
 
     def _wait_for_server_status(self, status):
         for server in self.servers:
-            self.status_timeout(
-                self.compute_client.servers, server.id, status)
+            # Make sure nova list keeps working throughout the build process
+            self.servers_client.list_servers()
+            self.servers_client.wait_for_server_status(server['id'], status)
 
     def nova_boot(self):
         name = data_utils.rand_name('scenario-server-')
-        client = self.compute_client
         flavor_id = CONF.compute.flavor_ref
-        secgroup = self._create_security_group_nova()
-        self.servers = client.servers.create(
-            name=name, image=self.image,
-            flavor=flavor_id,
+        # Explicitly create secgroup to avoid cleanup at the end of testcases.
+        # Since no traffic is tested, we don't need to actually add rules to
+        # secgroup
+        _, secgroup = self.security_groups_client.create_security_group(
+            'secgroup-%s' % name, 'secgroup-desc-%s' % name)
+        self.addCleanupClass(self.security_groups_client.delete_security_group,
+                             secgroup['id'])
+
+        self.servers_client.create_server(
+            name,
+            self.image,
+            flavor_id,
             min_count=CONF.scenario.large_ops_number,
-            security_groups=[secgroup.name])
+            security_groups=[{'name': secgroup['name']}])
         # needed because of bug 1199788
-        self.servers = [x for x in client.servers.list() if name in x.name]
+        params = {'name': name}
+        _, server_list = self.servers_client.list_servers(params)
+        self.servers = server_list['servers']
         for server in self.servers:
-            self.set_resource(server.name, server)
+            # after deleting all servers - wait for all servers to clear
+            # before cleanup continues
+            self.addCleanupClass(self.servers_client.
+                                 wait_for_server_termination,
+                                 server['id'])
+        for server in self.servers:
+            self.addCleanupClass(self.servers_client.delete_server,
+                                 server['id'])
         self._wait_for_server_status('ACTIVE')
 
     def _large_ops_scenario(self):
-        if CONF.scenario.large_ops_number < 1:
-            return
         self.glance_image_create()
         self.nova_boot()
 

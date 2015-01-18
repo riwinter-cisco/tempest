@@ -20,8 +20,8 @@ from tempest import test
 class InstanceActionsTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(InstanceActionsTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(InstanceActionsTestJSON, cls).resource_setup()
         cls.client = cls.servers_client
         resp, server = cls.create_test_server(wait_until='ACTIVE')
         cls.request_id = resp['x-compute-request-id']
@@ -47,7 +47,3 @@ class InstanceActionsTestJSON(base.BaseV2ComputeTest):
         self.assertEqual(200, resp.status)
         self.assertEqual(self.server_id, body['instance_uuid'])
         self.assertEqual('create', body['action'])
-
-
-class InstanceActionsTestXML(InstanceActionsTestJSON):
-    _interface = 'xml'

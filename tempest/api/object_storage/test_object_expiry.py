@@ -23,8 +23,8 @@ from tempest import test
 
 class ObjectExpiryTest(base.BaseObjectTest):
     @classmethod
-    def setUpClass(cls):
-        super(ObjectExpiryTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(ObjectExpiryTest, cls).resource_setup()
         cls.container_name = data_utils.rand_name(name='TestContainer')
         cls.container_client.create_container(cls.container_name)
 
@@ -36,9 +36,9 @@ class ObjectExpiryTest(base.BaseObjectTest):
                                                    self.object_name, '')
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         cls.delete_containers([cls.container_name])
-        super(ObjectExpiryTest, cls).tearDownClass()
+        super(ObjectExpiryTest, cls).resource_cleanup()
 
     def _test_object_expiry(self, metadata):
         # update object metadata
@@ -51,7 +51,6 @@ class ObjectExpiryTest(base.BaseObjectTest):
         resp, _ = \
             self.object_client.list_object_metadata(self.container_name,
                                                     self.object_name)
-        self.assertEqual(resp['status'], '200')
         self.assertHeaders(resp, 'Object', 'HEAD')
         self.assertIn('x-delete-at', resp)
         # we want to ensure that we will sleep long enough for things to
@@ -60,7 +59,6 @@ class ObjectExpiryTest(base.BaseObjectTest):
 
         resp, body = self.object_client.get_object(self.container_name,
                                                    self.object_name)
-        self.assertEqual(resp['status'], '200')
         self.assertHeaders(resp, 'Object', 'GET')
         self.assertIn('x-delete-at', resp)
 

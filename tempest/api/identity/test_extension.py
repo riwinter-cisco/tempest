@@ -23,15 +23,10 @@ class ExtensionTestJSON(base.BaseIdentityV2AdminTest):
     @test.attr(type='gate')
     def test_list_extensions(self):
         # List all the extensions
-        resp, body = self.non_admin_client.list_extensions()
-        self.assertEqual(200, resp.status)
+        _, body = self.non_admin_client.list_extensions()
         self.assertNotEmpty(body)
         keys = ['name', 'updated', 'alias', 'links',
                 'namespace', 'description']
         for value in body:
             for key in keys:
                 self.assertIn(key, value)
-
-
-class ExtensionTestXML(ExtensionTestJSON):
-    _interface = 'xml'

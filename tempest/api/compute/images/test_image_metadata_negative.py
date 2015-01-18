@@ -22,8 +22,8 @@ from tempest import test
 class ImagesMetadataTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(ImagesMetadataTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ImagesMetadataTestJSON, cls).resource_setup()
         cls.client = cls.images_client
 
     @test.attr(type=['negative', 'gate'])
@@ -72,7 +72,3 @@ class ImagesMetadataTestJSON(base.BaseV2ComputeTest):
         self.assertRaises(exceptions.NotFound,
                           self.client.delete_image_metadata_item,
                           data_utils.rand_uuid(), 'key1')
-
-
-class ImagesMetadataTestXML(ImagesMetadataTestJSON):
-    _interface = 'xml'

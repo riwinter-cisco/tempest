@@ -15,12 +15,12 @@
 
 import json
 import urllib
+from xml.etree import ElementTree as etree
 
 from tempest.common import http
 from tempest.common import rest_client
 from tempest import config
 from tempest import exceptions
-from xml.etree import ElementTree as etree
 
 CONF = config.CONF
 
@@ -32,11 +32,15 @@ class AccountClient(rest_client.RestClient):
 
     def create_account(self, data=None,
                        params=None,
-                       metadata={},
-                       remove_metadata={},
+                       metadata=None,
+                       remove_metadata=None,
                        metadata_prefix='X-Account-Meta-',
                        remove_metadata_prefix='X-Remove-Account-Meta-'):
         """Create an account."""
+        if metadata is None:
+            metadata = {}
+        if remove_metadata is None:
+            remove_metadata = {}
         url = ''
         if params:
             url += '?%s' % urllib.urlencode(params)
@@ -48,17 +52,17 @@ class AccountClient(rest_client.RestClient):
             headers[remove_metadata_prefix + key] = remove_metadata[key]
 
         resp, body = self.put(url, data, headers)
+        self.expected_success(200, resp.status)
         return resp, body
 
     def delete_account(self, data=None, params=None):
         """Delete an account."""
         url = ''
         if params:
-            if 'bulk-delete' in params:
-                url += 'bulk-delete&'
             url = '?%s%s' % (url, urllib.urlencode(params))
 
         resp, body = self.delete(url, headers={}, body=data)
+        self.expected_success(200, resp.status)
         return resp, body
 
     def list_account_metadata(self):
@@ -67,16 +71,24 @@ class AccountClient(rest_client.RestClient):
         Returns all account metadata headers
         """
         resp, body = self.head('')
+        self.expected_success(204, resp.status)
         return resp, body
 
     def create_account_metadata(self, metadata,
-                                metadata_prefix='X-Account-Meta-'):
+                                metadata_prefix='X-Account-Meta-',
+                                data=None, params=None):
         """Creates an account metadata entry."""
         headers = {}
-        for key in metadata:
-            headers[metadata_prefix + key] = metadata[key]
+        if metadata:
+            for key in metadata:
+                headers[metadata_prefix + key] = metadata[key]
 
-        resp, body = self.post('', headers=headers, body=None)
+        url = ''
+        if params:
+            url = '?%s%s' % (url, urllib.urlencode(params))
+
+        resp, body = self.post(url, headers=headers, body=data)
+        self.expected_success([200, 204], resp.status)
         return resp, body
 
     def delete_account_metadata(self, metadata,
@@ -89,6 +101,7 @@ class AccountClient(rest_client.RestClient):
         for item in metadata:
             headers[metadata_prefix + item] = metadata[item]
         resp, body = self.post('', headers=headers, body=None)
+        self.expected_success(204, resp.status)
         return resp, body
 
     def create_and_delete_account_metadata(
@@ -107,6 +120,7 @@ class AccountClient(rest_client.RestClient):
             headers[delete_metadata_prefix + key] = delete_metadata[key]
 
         resp, body = self.post('', headers=headers, body=None)
+        self.expected_success(204, resp.status)
         return resp, body
 
     def list_account_containers(self, params=None):
@@ -139,6 +153,7 @@ class AccountClient(rest_client.RestClient):
             body = etree.fromstring(body)
         else:
             body = body.strip().splitlines()
+        self.expected_success([200, 204], resp.status)
         return resp, body
 
     def list_extensions(self):
@@ -148,6 +163,7 @@ class AccountClient(rest_client.RestClient):
         finally:
             self.reset_path()
         body = json.loads(body)
+        self.expected_success(200, resp.status)
         return resp, body
 
 
@@ -165,7 +181,11 @@ class AccountClientCustomizedHeader(rest_client.RestClient):
     def request(self, method, url, extra_headers=False, headers=None,
                 body=None):
         """A simple HTTP request interface."""
-        self.http_obj = http.ClosingHttp()
+        dscv = CONF.identity.disable_ssl_certificate_validation
+        ca_certs = CONF.identity.ca_certificates_file
+        self.http_obj = http.ClosingHttp(
+            disable_ssl_certificate_validation=dscv,
+            ca_certs=ca_certs)
         if headers is None:
             headers = {}
         elif extra_headers:
@@ -214,7 +234,7 @@ class AccountClientCustomizedHeader(rest_client.RestClient):
 
         url = '?format=%s' % self.format
         if params:
-            url += '&%s' + urllib.urlencode(params)
+            url += '&%s' % urllib.urlencode(params)
 
         headers = {}
         if metadata:
@@ -222,4 +242,5 @@ class AccountClientCustomizedHeader(rest_client.RestClient):
                 headers[str(key)] = metadata[key]
 
         resp, body = self.get(url, headers=headers)
+        self.expected_success(200, resp.status)
         return resp, body

@@ -24,8 +24,8 @@ CONF = config.CONF
 class ListImageFiltersNegativeTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(ListImageFiltersNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ListImageFiltersNegativeTestJSON, cls).resource_setup()
         if not CONF.service_available.glance:
             skip_msg = ("%s skipped as glance is not available" % cls.__name__)
             raise cls.skipException(skip_msg)
@@ -37,7 +37,3 @@ class ListImageFiltersNegativeTestJSON(base.BaseV2ComputeTest):
         nonexistent_image = data_utils.rand_uuid()
         self.assertRaises(exceptions.NotFound, self.client.get_image,
                           nonexistent_image)
-
-
-class ListImageFiltersNegativeTestXML(ListImageFiltersNegativeTestJSON):
-    _interface = 'xml'

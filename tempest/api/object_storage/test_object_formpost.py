@@ -30,9 +30,8 @@ class ObjectFormPostTest(base.BaseObjectTest):
     containers = []
 
     @classmethod
-    @test.safe_setup
-    def setUpClass(cls):
-        super(ObjectFormPostTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(ObjectFormPostTest, cls).resource_setup()
         cls.container_name = data_utils.rand_name(name='TestContainer')
         cls.object_name = data_utils.rand_name(name='ObjectTemp')
 
@@ -56,11 +55,10 @@ class ObjectFormPostTest(base.BaseObjectTest):
             self.key)
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         cls.account_client.delete_account_metadata(metadata=cls.metadata)
         cls.delete_containers(cls.containers)
-        cls.data.teardown_all()
-        super(ObjectFormPostTest, cls).tearDownClass()
+        super(ObjectFormPostTest, cls).resource_cleanup()
 
     def get_multipart_form(self, expires=600):
         path = "%s/%s/%s" % (
@@ -119,12 +117,10 @@ class ObjectFormPostTest(base.BaseObjectTest):
         url = "%s/%s" % (self.container_name, self.object_name)
 
         resp, body = self.object_client.post(url, body, headers=headers)
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp, "Object", "POST")
 
         # Ensure object is available
         resp, body = self.object_client.get("%s/%s%s" % (
             self.container_name, self.object_name, "testfile"))
-        self.assertIn(int(resp['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp, "Object", "GET")
         self.assertEqual(body, "hello world")

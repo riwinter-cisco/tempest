@@ -23,16 +23,11 @@ from tempest import test
 
 class ObjectACLsNegativeTest(base.BaseObjectTest):
     @classmethod
-    def setUpClass(cls):
-        super(ObjectACLsNegativeTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(ObjectACLsNegativeTest, cls).resource_setup()
         cls.data.setup_test_user()
         test_os = clients.Manager(cls.data.test_credentials)
         cls.test_auth_data = test_os.auth_provider.auth_data
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.data.teardown_all()
-        super(ObjectACLsNegativeTest, cls).tearDownClass()
 
     def setUp(self):
         super(ObjectACLsNegativeTest, self).setUp()
@@ -93,7 +88,6 @@ class ObjectACLsNegativeTest(base.BaseObjectTest):
         object_name = data_utils.rand_name(name='Object')
         resp, _ = self.object_client.create_object(
             self.container_name, object_name, 'data')
-        self.assertEqual(resp['status'], '201')
         self.assertHeaders(resp, 'Object', 'PUT')
         # trying to get object with non authorized user token
         self.custom_object_client.auth_provider.set_alt_auth_data(
@@ -111,7 +105,6 @@ class ObjectACLsNegativeTest(base.BaseObjectTest):
         object_name = data_utils.rand_name(name='Object')
         resp, _ = self.object_client.create_object(
             self.container_name, object_name, 'data')
-        self.assertEqual(resp['status'], '201')
         self.assertHeaders(resp, 'Object', 'PUT')
         # trying to delete object with non-authorized user token
         self.custom_object_client.auth_provider.set_alt_auth_data(
@@ -130,13 +123,11 @@ class ObjectACLsNegativeTest(base.BaseObjectTest):
         resp_meta, body = self.container_client.update_container_metadata(
             self.container_name, metadata=cont_headers,
             metadata_prefix='')
-        self.assertIn(int(resp_meta['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp_meta, 'Container', 'POST')
         # create object
         object_name = data_utils.rand_name(name='Object')
         resp, _ = self.object_client.create_object(self.container_name,
                                                    object_name, 'data')
-        self.assertEqual(resp['status'], '201')
         self.assertHeaders(resp, 'Object', 'PUT')
         # Trying to read the object without rights
         self.custom_object_client.auth_provider.set_alt_auth_data(
@@ -155,7 +146,6 @@ class ObjectACLsNegativeTest(base.BaseObjectTest):
         resp_meta, body = self.container_client.update_container_metadata(
             self.container_name, metadata=cont_headers,
             metadata_prefix='')
-        self.assertIn(int(resp_meta['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp_meta, 'Container', 'POST')
         # Trying to write the object without rights
         self.custom_object_client.auth_provider.set_alt_auth_data(
@@ -178,7 +168,6 @@ class ObjectACLsNegativeTest(base.BaseObjectTest):
         resp_meta, body = self.container_client.update_container_metadata(
             self.container_name, metadata=cont_headers,
             metadata_prefix='')
-        self.assertIn(int(resp_meta['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp_meta, 'Container', 'POST')
         # Trying to write the object without write rights
         self.custom_object_client.auth_provider.set_alt_auth_data(
@@ -201,13 +190,11 @@ class ObjectACLsNegativeTest(base.BaseObjectTest):
         resp_meta, body = self.container_client.update_container_metadata(
             self.container_name, metadata=cont_headers,
             metadata_prefix='')
-        self.assertIn(int(resp_meta['status']), test.HTTP_SUCCESS)
         self.assertHeaders(resp_meta, 'Container', 'POST')
         # create object
         object_name = data_utils.rand_name(name='Object')
         resp, _ = self.object_client.create_object(self.container_name,
                                                    object_name, 'data')
-        self.assertEqual(resp['status'], '201')
         self.assertHeaders(resp, 'Object', 'PUT')
         # Trying to delete the object without write rights
         self.custom_object_client.auth_provider.set_alt_auth_data(

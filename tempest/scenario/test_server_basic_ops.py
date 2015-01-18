@@ -26,7 +26,7 @@ LOG = logging.getLogger(__name__)
 load_tests = test_utils.load_tests_input_scenario_utils
 
 
-class TestServerBasicOps(manager.OfficialClientTest):
+class TestServerBasicOps(manager.ScenarioTest):
 
     """
     This smoke test case follows this basic set of operations:
@@ -35,8 +35,7 @@ class TestServerBasicOps(manager.OfficialClientTest):
      * Create a security group to control network access in instance
      * Add simple permissive rules to the security group
      * Launch an instance
-     * Pause/unpause the instance
-     * Suspend/resume the instance
+     * Perform ssh to instance
      * Terminate the instance
     """
 
@@ -69,43 +68,35 @@ class TestServerBasicOps(manager.OfficialClientTest):
 
     def boot_instance(self):
         # Create server with image and flavor from input scenario
-        security_groups = [self.security_group.name]
+        security_groups = [{'name': self.security_group['name']}]
         create_kwargs = {
-            'key_name': self.keypair.id,
+            'key_name': self.keypair['name'],
             'security_groups': security_groups
         }
-        instance = self.create_server(image=self.image_ref,
-                                      flavor=self.flavor_ref,
-                                      create_kwargs=create_kwargs)
-        self.set_resource('instance', instance)
-
-    def terminate_instance(self):
-        instance = self.get_resource('instance')
-        instance.delete()
-        self.remove_resource('instance')
+        self.instance = self.create_server(image=self.image_ref,
+                                           flavor=self.flavor_ref,
+                                           create_kwargs=create_kwargs)
 
     def verify_ssh(self):
         if self.run_ssh:
             # Obtain a floating IP
-            floating_ip = self.compute_client.floating_ips.create()
+            _, floating_ip = self.floating_ips_client.create_floating_ip()
+            self.addCleanup(self.delete_wrapper,
+                            self.floating_ips_client.delete_floating_ip,
+                            floating_ip['id'])
             # Attach a floating IP
-            instance = self.get_resource('instance')
-            instance.add_floating_ip(floating_ip)
+            self.floating_ips_client.associate_floating_ip_to_server(
+                floating_ip['ip'], self.instance['id'])
             # Check ssh
-            try:
-                self.get_remote_client(
-                    server_or_ip=floating_ip.ip,
-                    username=self.image_utils.ssh_user(self.image_ref),
-                    private_key=self.keypair.private_key)
-            except Exception:
-                LOG.exception('ssh to server failed')
-                self._log_console_output()
-                raise
+            self.get_remote_client(
+                server_or_ip=floating_ip['ip'],
+                username=self.image_utils.ssh_user(self.image_ref),
+                private_key=self.keypair['private_key'])
 
     @test.services('compute', 'network')
     def test_server_basicops(self):
         self.add_keypair()
-        self.security_group = self._create_security_group_nova()
+        self.security_group = self._create_security_group()
         self.boot_instance()
         self.verify_ssh()
-        self.terminate_instance()
+        self.servers_client.delete_server(self.instance['id'])

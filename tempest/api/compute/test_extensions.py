@@ -38,11 +38,11 @@ class ExtensionsTestJSON(base.BaseV2ComputeTest):
         if ext == 'all':
             self.assertIn('Hosts', map(lambda x: x['name'], extensions))
         elif ext:
-            self.assertIn(ext, map(lambda x: x['name'], extensions))
+            self.assertIn(ext, map(lambda x: x['alias'], extensions))
         else:
             raise self.skipException('There are not any extensions configured')
         # Log extensions list
-        extension_list = map(lambda x: x['name'], extensions)
+        extension_list = map(lambda x: x['alias'], extensions)
         LOG.debug("Nova extensions: %s" % ','.join(extension_list))
 
     @test.requires_ext(extension='os-consoles', service='compute')
@@ -52,7 +52,3 @@ class ExtensionsTestJSON(base.BaseV2ComputeTest):
         resp, extension = self.extensions_client.get_extension('os-consoles')
         self.assertEqual(200, resp.status)
         self.assertEqual('os-consoles', extension['alias'])
-
-
-class ExtensionsTestXML(ExtensionsTestJSON):
-    _interface = 'xml'

@@ -23,8 +23,8 @@ from tempest import test
 class TenantUsagesTestJSON(base.BaseV2ComputeAdminTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(TenantUsagesTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(TenantUsagesTestJSON, cls).resource_setup()
         cls.adm_client = cls.os_adm.tenant_usages_client
         cls.client = cls.os.tenant_usages_client
         cls.tenant_id = cls.client.tenant_id
@@ -73,7 +73,3 @@ class TenantUsagesTestJSON(base.BaseV2ComputeAdminTest):
 
         self.assertEqual(200, resp.status)
         self.assertEqual(len(tenant_usage), 8)
-
-
-class TenantUsagesTestXML(TenantUsagesTestJSON):
-    _interface = 'xml'

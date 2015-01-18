@@ -27,37 +27,14 @@ CONF = config.CONF
 class AccountQuotasNegativeTest(base.BaseObjectTest):
 
     @classmethod
-    @test.safe_setup
-    def setUpClass(cls):
-        super(AccountQuotasNegativeTest, cls).setUpClass()
+    def resource_setup(cls):
+        super(AccountQuotasNegativeTest, cls).resource_setup()
         cls.container_name = data_utils.rand_name(name="TestContainer")
         cls.container_client.create_container(cls.container_name)
 
-        cls.data.setup_test_user()
+        cls.data.setup_test_user(reseller=True)
 
         cls.os_reselleradmin = clients.Manager(cls.data.test_credentials)
-
-        # Retrieve the ResellerAdmin role id
-        reseller_role_id = None
-        try:
-            _, roles = cls.os_admin.identity_client.list_roles()
-            reseller_role_id = next(r['id'] for r in roles if r['name']
-                                    == CONF.object_storage.reseller_admin_role)
-        except StopIteration:
-            msg = "No ResellerAdmin role found"
-            raise exceptions.NotFound(msg)
-
-        # Retrieve the ResellerAdmin tenant id
-        reseller_user_id = cls.data.test_credentials.user_id
-
-        # Retrieve the ResellerAdmin tenant id
-        reseller_tenant_id = cls.data.test_credentials.tenant_id
-
-        # Assign the newly created user the appropriate ResellerAdmin role
-        cls.os_admin.identity_client.assign_user_role(
-            reseller_tenant_id,
-            reseller_user_id,
-            reseller_role_id)
 
         # Retrieve a ResellerAdmin auth data and use it to set a quota
         # on the client's account
@@ -93,11 +70,10 @@ class AccountQuotasNegativeTest(base.BaseObjectTest):
         super(AccountQuotasNegativeTest, self).tearDown()
 
     @classmethod
-    def tearDownClass(cls):
+    def resource_cleanup(cls):
         if hasattr(cls, "container_name"):
             cls.delete_containers([cls.container_name])
-        cls.data.teardown_all()
-        super(AccountQuotasNegativeTest, cls).tearDownClass()
+        super(AccountQuotasNegativeTest, cls).resource_cleanup()
 
     @test.attr(type=["negative", "smoke"])
     @test.requires_ext(extension='account_quotas', service='object')

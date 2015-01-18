@@ -25,19 +25,21 @@ LOG = logging.getLogger(__name__)
 class StacksTestJSON(base.BaseOrchestrationTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(StacksTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(StacksTestJSON, cls).resource_setup()
         cls.stack_name = data_utils.rand_name('heat')
-        template = cls.load_template('non_empty_stack')
+        template = cls.read_template('non_empty_stack')
         image_id = (CONF.orchestration.image_ref or
                     cls._create_image()['id'])
+        flavor = CONF.orchestration.instance_type
         # create the stack
         cls.stack_identifier = cls.create_stack(
             cls.stack_name,
             template,
             parameters={
                 'trigger': 'start',
-                'image': image_id
+                'image': image_id,
+                'flavor': flavor
             })
         cls.stack_id = cls.stack_identifier.split('/')[1]
         cls.resource_name = 'fluffy'
@@ -45,8 +47,7 @@ class StacksTestJSON(base.BaseOrchestrationTest):
         cls.client.wait_for_stack_status(cls.stack_id, 'CREATE_COMPLETE')
 
     def _list_stacks(self, expected_num=None, **filter_kwargs):
-        resp, stacks = self.client.list_stacks(params=filter_kwargs)
-        self.assertEqual('200', resp['status'])
+        _, stacks = self.client.list_stacks(params=filter_kwargs)
         self.assertIsInstance(stacks, list)
         if expected_num is not None:
             self.assertEqual(expected_num, len(stacks))
@@ -62,8 +63,7 @@ class StacksTestJSON(base.BaseOrchestrationTest):
     @test.attr(type='gate')
     def test_stack_show(self):
         """Getting details about created stack should be possible."""
-        resp, stack = self.client.get_stack(self.stack_name)
-        self.assertEqual('200', resp['status'])
+        _, stack = self.client.get_stack(self.stack_name)
         self.assertIsInstance(stack, dict)
         self.assert_fields_in_dict(stack, 'stack_name', 'id', 'links',
                                    'parameters', 'outputs', 'disable_rollback',
@@ -82,12 +82,10 @@ class StacksTestJSON(base.BaseOrchestrationTest):
     @test.attr(type='gate')
     def test_suspend_resume_stack(self):
         """Suspend and resume a stack."""
-        resp, suspend_stack = self.client.suspend_stack(self.stack_identifier)
-        self.assertEqual('200', resp['status'])
+        _, suspend_stack = self.client.suspend_stack(self.stack_identifier)
         self.client.wait_for_stack_status(self.stack_identifier,
                                           'SUSPEND_COMPLETE')
-        resp, resume_stack = self.client.resume_stack(self.stack_identifier)
-        self.assertEqual('200', resp['status'])
+        _, resume_stack = self.client.resume_stack(self.stack_identifier)
         self.client.wait_for_stack_status(self.stack_identifier,
                                           'RESUME_COMPLETE')
 
@@ -101,8 +99,8 @@ class StacksTestJSON(base.BaseOrchestrationTest):
     @test.attr(type='gate')
     def test_show_resource(self):
         """Getting details about created resource should be possible."""
-        resp, resource = self.client.get_resource(self.stack_identifier,
-                                                  self.resource_name)
+        _, resource = self.client.get_resource(self.stack_identifier,
+                                               self.resource_name)
         self.assertIsInstance(resource, dict)
         self.assert_fields_in_dict(resource, 'resource_name', 'description',
                                    'links', 'logical_resource_id',
@@ -115,18 +113,16 @@ class StacksTestJSON(base.BaseOrchestrationTest):
     @test.attr(type='gate')
     def test_resource_metadata(self):
         """Getting metadata for created resources should be possible."""
-        resp, metadata = self.client.show_resource_metadata(
+        _, metadata = self.client.show_resource_metadata(
             self.stack_identifier,
             self.resource_name)
-        self.assertEqual('200', resp['status'])
         self.assertIsInstance(metadata, dict)
         self.assertEqual(['Tom', 'Stinky'], metadata.get('kittens', None))
 
     @test.attr(type='gate')
     def test_list_events(self):
         """Getting list of created events for the stack should be possible."""
-        resp, events = self.client.list_events(self.stack_identifier)
-        self.assertEqual('200', resp['status'])
+        _, events = self.client.list_events(self.stack_identifier)
         self.assertIsInstance(events, list)
 
         for event in events:
@@ -141,14 +137,13 @@ class StacksTestJSON(base.BaseOrchestrationTest):
     @test.attr(type='gate')
     def test_show_event(self):
         """Getting details about an event should be possible."""
-        resp, events = self.client.list_resource_events(self.stack_identifier,
-                                                        self.resource_name)
+        _, events = self.client.list_resource_events(self.stack_identifier,
+                                                     self.resource_name)
         self.assertNotEqual([], events)
         events.sort(key=lambda event: event['event_time'])
         event_id = events[0]['id']
-        resp, event = self.client.show_event(self.stack_identifier,
-                                             self.resource_name, event_id)
-        self.assertEqual('200', resp['status'])
+        _, event = self.client.show_event(self.stack_identifier,
+                                          self.resource_name, event_id)
         self.assertIsInstance(event, dict)
         self.assert_fields_in_dict(event, 'resource_name', 'event_time',
                                    'links', 'logical_resource_id',

@@ -29,8 +29,8 @@ class AggregatesAdminTestJSON(base.BaseV2ComputeAdminTest):
     _host_key = 'OS-EXT-SRV-ATTR:host'
 
     @classmethod
-    def setUpClass(cls):
-        super(AggregatesAdminTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(AggregatesAdminTestJSON, cls).resource_setup()
         cls.client = cls.os_adm.aggregates_client
         cls.aggregate_name_prefix = 'test_aggregate_'
         cls.az_name_prefix = 'test_az_'
@@ -145,7 +145,7 @@ class AggregatesAdminTestJSON(base.BaseV2ComputeAdminTest):
         self.assertEqual(200, resp.status)
         self.assertIn((aggregate_id, new_aggregate_name, new_az_name),
                       map(lambda x:
-                         (x['id'], x['name'], x['availability_zone']),
+                          (x['id'], x['name'], x['availability_zone']),
                           aggregates))
 
     @test.attr(type='gate')
@@ -221,9 +221,3 @@ class AggregatesAdminTestJSON(base.BaseV2ComputeAdminTest):
                                                wait_until='ACTIVE')
         resp, body = admin_servers_client.get_server(server['id'])
         self.assertEqual(self.host, body[self._host_key])
-
-
-class AggregatesAdminTestXML(AggregatesAdminTestJSON):
-    _host_key = (
-        '{http://docs.openstack.org/compute/ext/extended_status/api/v1.1}host')
-    _interface = 'xml'

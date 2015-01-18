@@ -22,16 +22,6 @@ CONF = config.CONF
 LOG = logging.getLogger(__name__)
 
 
-def _console_dump(client, server_id):
-    try:
-        resp, output = client.get_console_output(server_id, None)
-        LOG.debug("Console Output for Server %s:\n%s" % (
-            server_id, output))
-    except exceptions.NotFound:
-        LOG.debug("Server %s: doesn't have a console" % server_id)
-        pass
-
-
 # NOTE(afazekas): This function needs to know a token and a subject.
 def wait_for_server_status(client, server_id, status, ready_wait=True,
                            extra_timeout=0, raise_on_error=True):
@@ -81,10 +71,12 @@ def wait_for_server_status(client, server_id, status, ready_wait=True,
                      '/'.join((old_status, str(old_task_state))),
                      '/'.join((server_status, str(task_state))),
                      time.time() - start_time)
-
         if (server_status == 'ERROR') and raise_on_error:
-            _console_dump(client, server_id)
-            raise exceptions.BuildErrorException(server_id=server_id)
+            if 'fault' in body:
+                raise exceptions.BuildErrorException(body['fault'],
+                                                     server_id=server_id)
+            else:
+                raise exceptions.BuildErrorException(server_id=server_id)
 
         timed_out = int(time.time()) - start_time >= timeout
 
@@ -99,11 +91,9 @@ def wait_for_server_status(client, server_id, status, ready_wait=True,
                         'timeout': timeout})
             message += ' Current status: %s.' % server_status
             message += ' Current task state: %s.' % task_state
-
             caller = misc_utils.find_test_caller()
             if caller:
                 message = '(%s) %s' % (caller, message)
-            _console_dump(client, server_id)
             raise exceptions.TimeoutException(message)
         old_status = server_status
         old_task_state = task_state
@@ -121,22 +111,53 @@ def wait_for_image_status(client, image_id, status):
     while image['status'] != status:
         time.sleep(client.build_interval)
         resp, image = client.get_image(image_id)
-        if image['status'] == 'ERROR':
+        status_curr = image['status']
+        if status_curr == 'ERROR':
             raise exceptions.AddImageException(image_id=image_id)
 
         # check the status again to avoid a false negative where we hit
         # the timeout at the same time that the image reached the expected
         # status
-        if image['status'] == status:
+        if status_curr == status:
             return
 
         if int(time.time()) - start >= client.build_timeout:
-            message = ('Image %(image_id)s failed to reach %(status)s '
-                       'status within the required time (%(timeout)s s).' %
+            message = ('Image %(image_id)s failed to reach %(status)s state'
+                       '(current state %(status_curr)s) '
+                       'within the required time (%(timeout)s s).' %
                        {'image_id': image_id,
                         'status': status,
+                        'status_curr': status_curr,
                         'timeout': client.build_timeout})
-            message += ' Current status: %s.' % image['status']
+            caller = misc_utils.find_test_caller()
+            if caller:
+                message = '(%s) %s' % (caller, message)
+            raise exceptions.TimeoutException(message)
+
+
+def wait_for_bm_node_status(client, node_id, attr, status):
+    """Waits for a baremetal node attribute to reach given status.
+
+    The client should have a show_node(node_uuid) method to get the node.
+    """
+    _, node = client.show_node(node_id)
+    start = int(time.time())
+
+    while node[attr] != status:
+        time.sleep(client.build_interval)
+        _, node = client.show_node(node_id)
+        status_curr = node[attr]
+        if status_curr == status:
+            return
+
+        if int(time.time()) - start >= client.build_timeout:
+            message = ('Node %(node_id)s failed to reach %(attr)s=%(status)s '
+                       'within the required time (%(timeout)s s).' %
+                       {'node_id': node_id,
+                        'attr': attr,
+                        'status': status,
+                        'timeout': client.build_timeout})
+            message += ' Current state of %s: %s.' % (attr, status_curr)
             caller = misc_utils.find_test_caller()
             if caller:
                 message = '(%s) %s' % (caller, message)

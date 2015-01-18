@@ -16,18 +16,10 @@
 import json
 
 from tempest.common import rest_client
-from tempest import config
-
-CONF = config.CONF
+from tempest.services.identity.v3.json import base
 
 
-class PolicyClientJSON(rest_client.RestClient):
-
-    def __init__(self, auth_provider):
-        super(PolicyClientJSON, self).__init__(auth_provider)
-        self.service = CONF.identity.catalog_type
-        self.endpoint_url = 'adminURL'
-        self.api_version = "v3"
+class PolicyClientJSON(base.IdentityV3Client):
 
     def create_policy(self, blob, type):
         """Creates a Policy."""
@@ -37,25 +29,27 @@ class PolicyClientJSON(rest_client.RestClient):
         }
         post_body = json.dumps({'policy': post_body})
         resp, body = self.post('policies', post_body)
+        self.expected_success(201, resp.status)
         body = json.loads(body)
-        return resp, body['policy']
+        return rest_client.ResponseBody(resp, body['policy'])
 
     def list_policies(self):
         """Lists the policies."""
         resp, body = self.get('policies')
+        self.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body['policies']
+        return rest_client.ResponseBodyList(resp, body['policies'])
 
     def get_policy(self, policy_id):
         """Lists out the given policy."""
         url = 'policies/%s' % policy_id
         resp, body = self.get(url)
+        self.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body['policy']
+        return rest_client.ResponseBody(resp, body['policy'])
 
     def update_policy(self, policy_id, **kwargs):
         """Updates a policy."""
-        resp, body = self.get_policy(policy_id)
         type = kwargs.get('type')
         post_body = {
             'type': type
@@ -63,10 +57,13 @@ class PolicyClientJSON(rest_client.RestClient):
         post_body = json.dumps({'policy': post_body})
         url = 'policies/%s' % policy_id
         resp, body = self.patch(url, post_body)
+        self.expected_success(200, resp.status)
         body = json.loads(body)
-        return resp, body['policy']
+        return rest_client.ResponseBody(resp, body['policy'])
 
     def delete_policy(self, policy_id):
         """Deletes the policy."""
         url = "policies/%s" % policy_id
-        return self.delete(url)
+        resp, body = self.delete(url)
+        self.expected_success(204, resp.status)
+        return rest_client.ResponseBody(resp, body)

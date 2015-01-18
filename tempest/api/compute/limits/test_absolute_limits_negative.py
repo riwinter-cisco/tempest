@@ -21,8 +21,8 @@ from tempest import test
 class AbsoluteLimitsNegativeTestJSON(base.BaseV2ComputeTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(AbsoluteLimitsNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(AbsoluteLimitsNegativeTestJSON, cls).resource_setup()
         cls.client = cls.limits_client
         cls.server_client = cls.servers_client
 
@@ -32,6 +32,10 @@ class AbsoluteLimitsNegativeTestJSON(base.BaseV2ComputeTest):
         # Get max limit value
         max_meta = self.client.get_specific_absolute_limit('maxImageMeta')
 
+        # No point in running this test if there is no limit.
+        if int(max_meta) == -1:
+            raise self.skipException('no limit for maxImageMeta')
+
         # Create server should fail, since we are passing > metadata Limit!
         max_meta_data = int(max_meta) + 1
 
@@ -39,12 +43,10 @@ class AbsoluteLimitsNegativeTestJSON(base.BaseV2ComputeTest):
         for xx in range(max_meta_data):
             meta_data[str(xx)] = str(xx)
 
-        self.assertRaises(exceptions.OverLimit,
+        # A 403 Forbidden or 413 Overlimit (old behaviour) exception
+        # will be raised when out of quota
+        self.assertRaises((exceptions.Unauthorized, exceptions.OverLimit),
                           self.server_client.create_server,
                           name='test', meta=meta_data,
                           flavor_ref=self.flavor_ref,
                           image_ref=self.image_ref)
-
-
-class AbsoluteLimitsNegativeTestXML(AbsoluteLimitsNegativeTestJSON):
-    _interface = 'xml'

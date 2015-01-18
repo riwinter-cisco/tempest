@@ -27,8 +27,8 @@ class LiveBlockMigrationNegativeTestJSON(base.BaseV2ComputeAdminTest):
     _host_key = 'OS-EXT-SRV-ATTR:host'
 
     @classmethod
-    def setUpClass(cls):
-        super(LiveBlockMigrationNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(LiveBlockMigrationNegativeTestJSON, cls).resource_setup()
         if not CONF.compute_feature_enabled.live_migration:
             raise cls.skipException("Live migration is not enabled")
         cls.admin_hosts_client = cls.os_adm.hosts_client
@@ -51,9 +51,3 @@ class LiveBlockMigrationNegativeTestJSON(base.BaseV2ComputeAdminTest):
         self.assertRaises(exceptions.BadRequest, self._migrate_server_to,
                           server_id, target_host)
         self.servers_client.wait_for_server_status(server_id, 'ACTIVE')
-
-
-class LiveBlockMigrationNegativeTestXML(LiveBlockMigrationNegativeTestJSON):
-    _host_key = (
-        '{http://docs.openstack.org/compute/ext/extended_status/api/v1.1}host')
-    _interface = 'xml'

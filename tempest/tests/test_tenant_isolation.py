@@ -12,21 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import keystoneclient.v2_0.client as keystoneclient
 import mock
-import neutronclient.v2_0.client as neutronclient
 from oslo.config import cfg
 
-from tempest import clients
 from tempest.common import http
 from tempest.common import isolated_creds
 from tempest import config
 from tempest import exceptions
 from tempest.openstack.common.fixture import mockpatch
 from tempest.services.identity.json import identity_client as json_iden_client
-from tempest.services.identity.xml import identity_client as xml_iden_client
 from tempest.services.network.json import network_client as json_network_client
-from tempest.services.network.xml import network_client as xml_network_client
 from tempest.tests import base
 from tempest.tests import fake_config
 from tempest.tests import fake_http
@@ -51,32 +46,6 @@ class TestTenantIsolation(base.TestCase):
                                    json_iden_client.IdentityClientJSON))
         self.assertTrue(isinstance(iso_creds.network_admin_client,
                                    json_network_client.NetworkClientJSON))
-
-    def test_official_client(self):
-        self.useFixture(mockpatch.PatchObject(keystoneclient.Client,
-                                              'authenticate'))
-        self.useFixture(mockpatch.PatchObject(clients.OfficialClientManager,
-                                              '_get_image_client'))
-        self.useFixture(mockpatch.PatchObject(clients.OfficialClientManager,
-                                              '_get_object_storage_client'))
-        self.useFixture(mockpatch.PatchObject(clients.OfficialClientManager,
-                                              '_get_orchestration_client'))
-        self.useFixture(mockpatch.PatchObject(clients.OfficialClientManager,
-                                              '_get_ceilometer_client'))
-        iso_creds = isolated_creds.IsolatedCreds('test class',
-                                                 tempest_client=False)
-        self.assertTrue(isinstance(iso_creds.identity_admin_client,
-                                   keystoneclient.Client))
-        self.assertTrue(isinstance(iso_creds.network_admin_client,
-                                   neutronclient.Client))
-
-    def test_tempest_client_xml(self):
-        iso_creds = isolated_creds.IsolatedCreds('test class', interface='xml')
-        self.assertEqual(iso_creds.interface, 'xml')
-        self.assertTrue(isinstance(iso_creds.identity_admin_client,
-                                   xml_iden_client.IdentityClientXML))
-        self.assertTrue(isinstance(iso_creds.network_admin_client,
-                                   xml_network_client.NetworkClientXML))
 
     def _mock_user_create(self, id, name):
         user_fix = self.useFixture(mockpatch.PatchObject(
@@ -123,24 +92,21 @@ class TestTenantIsolation(base.TestCase):
         net_fix = self.useFixture(mockpatch.PatchObject(
             iso_creds.network_admin_client,
             'create_network',
-            return_value=({'status': 200},
-                          {'network': {'id': id, 'name': name}})))
+            return_value={'network': {'id': id, 'name': name}}))
         return net_fix
 
     def _mock_subnet_create(self, iso_creds, id, name):
         subnet_fix = self.useFixture(mockpatch.PatchObject(
             iso_creds.network_admin_client,
             'create_subnet',
-            return_value=({'status': 200},
-                          {'subnet': {'id': id, 'name': name}})))
+            return_value={'subnet': {'id': id, 'name': name}}))
         return subnet_fix
 
     def _mock_router_create(self, id, name):
         router_fix = self.useFixture(mockpatch.PatchObject(
             json_network_client.NetworkClientJSON,
             'create_router',
-            return_value=({'status': 200},
-                          {'router': {'id': id, 'name': name}})))
+            return_value={'router': {'id': id, 'name': name}}))
         return router_fix
 
     @mock.patch('tempest.common.rest_client.RestClient')
@@ -272,6 +238,12 @@ class TestTenantIsolation(base.TestCase):
 
     @mock.patch('tempest.common.rest_client.RestClient')
     def test_network_cleanup(self, MockRestClient):
+        def side_effect(**args):
+            return {"security_groups": [{"tenant_id": args['tenant_id'],
+                                         "name": args['name'],
+                                         "description": args['name'],
+                                         "security_group_rules": [],
+                                         "id": "sg-%s" % args['tenant_id']}]}
         iso_creds = isolated_creds.IsolatedCreds('test class',
                                                  password='fake_password')
         # Create primary tenant and network
@@ -335,11 +307,29 @@ class TestTenantIsolation(base.TestCase):
         remove_router_interface_mock = self.patch(
             'tempest.services.network.json.network_client.NetworkClientJSON.'
             'remove_router_interface_with_subnet_id')
+        return_values = ({'status': 200}, {'ports': []})
         port_list_mock = mock.patch.object(iso_creds.network_admin_client,
-                                           'list_ports', return_value=(
-                                           {'status': 200}, {'ports': []}))
+                                           'list_ports',
+                                           return_value=return_values)
+
         port_list_mock.start()
+        secgroup_list_mock = mock.patch.object(iso_creds.network_admin_client,
+                                               'list_security_groups',
+                                               side_effect=side_effect)
+        secgroup_list_mock.start()
+
+        return_values = (fake_http.fake_httplib({}, status=204), {})
+        remove_secgroup_mock = self.patch(
+            'tempest.services.network.network_client_base.'
+            'NetworkClientBase.delete', return_value=return_values)
         iso_creds.clear_isolated_creds()
+        # Verify default security group delete
+        calls = remove_secgroup_mock.mock_calls
+        self.assertEqual(len(calls), 3)
+        args = map(lambda x: x[1][0], calls)
+        self.assertIn('v2.0/security-groups/sg-1234', args)
+        self.assertIn('v2.0/security-groups/sg-12345', args)
+        self.assertIn('v2.0/security-groups/sg-123456', args)
         # Verify remove router interface calls
         calls = remove_router_interface_mock.mock_calls
         self.assertEqual(len(calls), 3)

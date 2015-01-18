@@ -23,8 +23,8 @@ from tempest import test
 class InstanceUsageAuditLogTestJSON(base.BaseV2ComputeAdminTest):
 
     @classmethod
-    def setUpClass(cls):
-        super(InstanceUsageAuditLogTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(InstanceUsageAuditLogTestJSON, cls).resource_setup()
         cls.adm_client = cls.os_adm.instance_usages_audit_log_client
 
     @test.attr(type='gate')
@@ -54,7 +54,3 @@ class InstanceUsageAuditLogTestJSON(base.BaseV2ComputeAdminTest):
                           'period_beginning', 'num_hosts_not_run']
         for item in expected_items:
             self.assertIn(item, body)
-
-
-class InstanceUsageAuditLogTestXML(InstanceUsageAuditLogTestJSON):
-    _interface = 'xml'

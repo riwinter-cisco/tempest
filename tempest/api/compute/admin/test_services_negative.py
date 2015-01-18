@@ -24,8 +24,8 @@ class ServicesAdminNegativeTestJSON(base.BaseV2ComputeAdminTest):
     """
 
     @classmethod
-    def setUpClass(cls):
-        super(ServicesAdminNegativeTestJSON, cls).setUpClass()
+    def resource_setup(cls):
+        super(ServicesAdminNegativeTestJSON, cls).resource_setup()
         cls.client = cls.os_adm.services_client
         cls.non_admin_client = cls.services_client
 
@@ -60,7 +60,3 @@ class ServicesAdminNegativeTestJSON(base.BaseV2ComputeAdminTest):
         resp, services = self.client.list_services(params)
         self.assertEqual(200, resp.status)
         self.assertEqual(0, len(services))
-
-
-class ServicesAdminNegativeTestXML(ServicesAdminNegativeTestJSON):
-    _interface = 'xml'

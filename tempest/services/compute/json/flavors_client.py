@@ -16,11 +16,11 @@
 import json
 import urllib
 
-from tempest.api_schema.compute import flavors as common_schema
-from tempest.api_schema.compute import flavors_access as schema_access
-from tempest.api_schema.compute import flavors_extra_specs \
+from tempest.api_schema.response.compute import flavors as common_schema
+from tempest.api_schema.response.compute import flavors_access as schema_access
+from tempest.api_schema.response.compute import flavors_extra_specs \
     as schema_extra_specs
-from tempest.api_schema.compute.v2 import flavors as v2schema
+from tempest.api_schema.response.compute.v2 import flavors as v2schema
 from tempest.common import rest_client
 from tempest import config
 
@@ -98,6 +98,11 @@ class FlavorsClientJSON(rest_client.RestClient):
             if flavor['id'] == id:
                 return False
         return True
+
+    @property
+    def resource_type(self):
+        """Returns the primary type of resource this client works with."""
+        return 'flavor'
 
     def set_flavor_extra_spec(self, flavor_id, specs):
         """Sets extra Specs to the mentioned flavor."""

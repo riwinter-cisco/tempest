@@ -21,7 +21,7 @@ CONF = config.CONF
 LOG = log.getLogger(__name__)
 
 
-class TestVolumeBootPattern(manager.OfficialClientTest):
+class TestVolumeBootPattern(manager.ScenarioTest):
 
     """
     This test case attempts to reproduce the following steps:
@@ -36,11 +36,10 @@ class TestVolumeBootPattern(manager.OfficialClientTest):
      * Check written content in the instance booted from snapshot
     """
     @classmethod
-    def setUpClass(cls):
-        super(TestVolumeBootPattern, cls).setUpClass()
-
+    def resource_setup(cls):
         if not CONF.volume_feature_enabled.snapshot:
             raise cls.skipException("Cinder volume snapshots are disabled")
+        super(TestVolumeBootPattern, cls).resource_setup()
 
     def _create_volume_from_image(self):
         img_uuid = CONF.compute.image_ref
@@ -52,27 +51,32 @@ class TestVolumeBootPattern(manager.OfficialClientTest):
         # dev_name=id:type:size:delete_on_terminate
         # where type needs to be "snap" if the server is booted
         # from a snapshot, size instead can be safely left empty
-        bd_map = {
-            'vda': vol_id + ':::0'
-        }
-        security_groups = [self.security_group.name]
+        bd_map = [{
+            'device_name': 'vda',
+            'volume_id': vol_id,
+            'delete_on_termination': '0'}]
+        self.security_group = self._create_security_group()
+        security_groups = [{'name': self.security_group['name']}]
         create_kwargs = {
             'block_device_mapping': bd_map,
-            'key_name': keypair.name,
+            'key_name': keypair['name'],
             'security_groups': security_groups
         }
         return self.create_server(image='', create_kwargs=create_kwargs)
 
     def _create_snapshot_from_volume(self, vol_id):
-        volume_snapshots = self.volume_client.volume_snapshots
         snap_name = data_utils.rand_name('snapshot')
-        snap = volume_snapshots.create(volume_id=vol_id,
-                                       force=True,
-                                       display_name=snap_name)
-        self.set_resource(snap.id, snap)
-        self.status_timeout(volume_snapshots,
-                            snap.id,
-                            'available')
+        _, snap = self.snapshots_client.create_snapshot(
+            volume_id=vol_id,
+            force=True,
+            display_name=snap_name)
+        self.addCleanup_with_wait(
+            waiter_callable=self.snapshots_client.wait_for_resource_deletion,
+            thing_id=snap['id'], thing_id_param='id',
+            cleanup_callable=self.delete_wrapper,
+            cleanup_args=[self.snapshots_client.delete_snapshot, snap['id']])
+        self.snapshots_client.wait_for_snapshot_status(snap['id'], 'available')
+        self.assertEqual(snap_name, snap['display_name'])
         return snap
 
     def _create_volume_from_snapshot(self, snap_id):
@@ -82,40 +86,32 @@ class TestVolumeBootPattern(manager.OfficialClientTest):
     def _stop_instances(self, instances):
         # NOTE(gfidente): two loops so we do not wait for the status twice
         for i in instances:
-            self.compute_client.servers.stop(i)
+            self.servers_client.stop(i['id'])
         for i in instances:
-            self.status_timeout(self.compute_client.servers,
-                                i.id,
-                                'SHUTOFF')
+            self.servers_client.wait_for_server_status(i['id'], 'SHUTOFF')
 
     def _detach_volumes(self, volumes):
         # NOTE(gfidente): two loops so we do not wait for the status twice
         for v in volumes:
-            self.volume_client.volumes.detach(v)
+            self.volumes_client.detach_volume(v['id'])
         for v in volumes:
-            self.status_timeout(self.volume_client.volumes,
-                                v.id,
-                                'available')
+            self.volumes_client.wait_for_volume_status(v['id'], 'available')
 
     def _ssh_to_server(self, server, keypair):
         if CONF.compute.use_floatingip_for_ssh:
-            floating_ip = self.compute_client.floating_ips.create()
-            fip_name = data_utils.rand_name('scenario-fip')
-            self.set_resource(fip_name, floating_ip)
-            server.add_floating_ip(floating_ip)
-            ip = floating_ip.ip
+            _, floating_ip = self.floating_ips_client.create_floating_ip()
+            self.addCleanup(self.delete_wrapper,
+                            self.floating_ips_client.delete_floating_ip,
+                            floating_ip['id'])
+            self.floating_ips_client.associate_floating_ip_to_server(
+                floating_ip['ip'], server['id'])
+            ip = floating_ip['ip']
         else:
             network_name_for_ssh = CONF.compute.network_for_ssh
             ip = server.networks[network_name_for_ssh][0]
 
-        try:
-            return self.get_remote_client(
-                ip,
-                private_key=keypair.private_key)
-        except Exception:
-            LOG.exception('ssh to server failed')
-            self._log_console_output()
-            raise
+        return self.get_remote_client(ip, private_key=keypair['private_key'],
+                                      log_console_of_servers=[server])
 
     def _get_content(self, ssh_client):
         return ssh_client.exec_command('cat /tmp/text')
@@ -127,21 +123,22 @@ class TestVolumeBootPattern(manager.OfficialClientTest):
         return self._get_content(ssh_client)
 
     def _delete_server(self, server):
-        self.compute_client.servers.delete(server)
-        self.delete_timeout(self.compute_client.servers, server.id)
+        self.servers_client.delete_server(server['id'])
+        self.servers_client.wait_for_server_termination(server['id'])
 
     def _check_content_of_written_file(self, ssh_client, expected):
         actual = self._get_content(ssh_client)
         self.assertEqual(expected, actual)
 
+    @test.skip_because(bug='1373513')
     @test.services('compute', 'volume', 'image')
     def test_volume_boot_pattern(self):
         keypair = self.create_keypair()
-        self.security_group = self._create_security_group_nova()
+        self.security_group = self._create_security_group()
 
         # create an instance from volume
         volume_origin = self._create_volume_from_image()
-        instance_1st = self._boot_instance_from_volume(volume_origin.id,
+        instance_1st = self._boot_instance_from_volume(volume_origin['id'],
                                                        keypair)
 
         # write content to volume on instance
@@ -153,7 +150,7 @@ class TestVolumeBootPattern(manager.OfficialClientTest):
         self._delete_server(instance_1st)
 
         # create a 2nd instance from volume
-        instance_2nd = self._boot_instance_from_volume(volume_origin.id,
+        instance_2nd = self._boot_instance_from_volume(volume_origin['id'],
                                                        keypair)
 
         # check the content of written file
@@ -162,11 +159,11 @@ class TestVolumeBootPattern(manager.OfficialClientTest):
         self._check_content_of_written_file(ssh_client_for_instance_2nd, text)
 
         # snapshot a volume
-        snapshot = self._create_snapshot_from_volume(volume_origin.id)
+        snapshot = self._create_snapshot_from_volume(volume_origin['id'])
 
         # create a 3rd instance from snapshot
-        volume = self._create_volume_from_snapshot(snapshot.id)
-        instance_from_snapshot = self._boot_instance_from_volume(volume.id,
+        volume = self._create_volume_from_snapshot(snapshot['id'])
+        instance_from_snapshot = self._boot_instance_from_volume(volume['id'],
                                                                  keypair)
 
         # check the content of written file
@@ -184,10 +181,11 @@ class TestVolumeBootPatternV2(TestVolumeBootPattern):
         bdms = [{'uuid': vol_id, 'source_type': 'volume',
                  'destination_type': 'volume', 'boot_index': 0,
                  'delete_on_termination': False}]
-        security_groups = [self.security_group.name]
+        self.security_group = self._create_security_group()
+        security_groups = [{'name': self.security_group['name']}]
         create_kwargs = {
             'block_device_mapping_v2': bdms,
-            'key_name': keypair.name,
+            'key_name': keypair['name'],
             'security_groups': security_groups
         }
         return self.create_server(image='', create_kwargs=create_kwargs)
