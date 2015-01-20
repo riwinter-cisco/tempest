@@ -15,7 +15,6 @@ import collections
 import re
 import time
 
-from tempest.common import debug
 from tempest.common.utils import data_utils
 from tempest import config
 from tempest.openstack.common import log as logging
@@ -93,6 +92,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 raise cls.skipException(msg)
         cls.check_preconditions()
 
+        cls.nx_onep = None
         if cls.setup_has_leaf_sw:
             ## This test requires one switch - mulit switch is not supported
             sw_attrs_data = (CONF.cisco.leaf_sws[0]).split(':')

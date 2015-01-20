@@ -1101,7 +1101,8 @@ _opts = [
     (baremetal_group, BaremetalGroup),
     (input_scenario_group, InputScenarioGroup),
     (cli_group, CLIGroup),
-    (negative_group, NegativeGroup)
+    (negative_group, NegativeGroup),
+    (cisco_group, CiscoGroup),
 ]
 
 
