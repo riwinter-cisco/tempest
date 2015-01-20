@@ -144,9 +144,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         ## Security groups not supported on N1kv - so we don't configured them
         ## if there isn't a N1Kv vsm
         if not self.setup_has_cisco_n1kv:
-            self.security_group = self._create_security_group_neutron(tenant_id=self.tenant_id)
+            self.security_group = self._create_security_group(tenant_id=self.tenant_id)
             try:
-                self._create_loginable_secgroup_rule_neutron(secgroup=self.security_group)
+                self._create_loginable_secgroup_rule(secgroup=self.security_group)
             except Exception as e:
                 LOG.debug("Login sec group already exists: {0}".format(e))
 
