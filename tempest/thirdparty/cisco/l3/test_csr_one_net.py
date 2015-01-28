@@ -37,8 +37,13 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         return cls.admin_credentials()
 
     @classmethod
+    def resource_setup(cls):
+        # Create no network resources for these tests.
+        cls.set_network_resources()
+        super(TestCSROneNet, cls).resource_setup()
+
+    @classmethod
     def check_preconditions(cls):
-        super(TestCSROneNet, cls).check_preconditions()
         if not (CONF.network.tenant_networks_reachable
                 or CONF.network.public_network_id):
             msg = ('Either tenant_networks_reachable must be "true", or '
@@ -78,12 +83,11 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                     cls.enabled = False
                     raise cls.skipException(msg)
 
+        super(TestCSROneNet, cls).check_preconditions()
+
     @classmethod
     def setUpClass(cls):
-        # Create no network resources for these tests.
-        cls.set_network_resources()
         super(TestCSROneNet, cls).setUpClass()
-
         cls.tenant_id = cls.manager.identity_client.tenant_id
         LOG.debug("Tenant ID: {0}".format(cls.tenant_id))
         for ext in ['router', 'security-group']:
@@ -131,45 +135,42 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         if cls.setup_has_leaf_sw and cls.nx_onep is not None:
             cls.nx_onep.disconnect()
 
-    def cleanup_wrapper(self, resource):
-        self.cleanup_resource(resource, self.__class__.__name__)
-
     def setUp(self):
         super(TestCSROneNet, self).setUp()
         self.servers = {}
         self.floating_ip_tuples = []
         self.linux_client = None
         self.imix_pkts = (64, 572, 1500)
+        self.keypair = self.create_keypair()
+        self.srv_kwargs = {'key_name': self.keypair['name']}
 
         ## Security groups not supported on N1kv - so we don't configured them
-        ## if there isn't a N1Kv vsm
+        ## if there isn't a N1Kv in the test bed
         if not self.setup_has_cisco_n1kv:
             self.security_group = self._create_security_group(tenant_id=self.tenant_id)
+            self.srv_kwargs['security_groups'] = [self.security_group]
             try:
                 self._create_loginable_secgroup_rule(secgroup=self.security_group)
+                pass
             except Exception as e:
                 LOG.debug("Login sec group already exists: {0}".format(e))
 
-            self.addCleanup(self.cleanup_wrapper, self.security_group)
-
-        self.network, self.subnet, self.router = self._create_networks(tenant_id=self.tenant_id)
+        self.network, self.subnet, self.router = self.create_networks(tenant_id=self.tenant_id)
 
         if self.setup_has_leaf_sw:
             ## Setup vlan event monitor based on ports in found in tempest.config
             for leaf_connection in self.leaf_sw_conns:
                 self.nx_onep.monitor_vlan_state(leaf_connection['port'], self.network['provider:segmentation_id'])
 
-        for r in [self.network, self.router, self.subnet]:
-            self.addCleanup(self.cleanup_wrapper, r)
         self.check_networks()
 
         name = data_utils.rand_name('server')
         serv_dict = self._create_server(name, self.network)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
+        self.servers[serv_dict['server']['id']] = serv_dict['keypair']
 
         name = data_utils.rand_name('server')
         serv_dict = self._create_server(name, self.network)
-        self.servers[serv_dict['server']] = serv_dict['keypair']
+        self.servers[serv_dict['server']['id']] = serv_dict['keypair']
 
         if self.setup_has_leaf_sw:
             self.num_vlan_events = 0
@@ -190,7 +191,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             LOG.debug("Server {0}, key {1}".format(server, key))
             # call the common method in the parent class
             super(TestCSROneNet, self)._check_tenant_network_connectivity(
-                server, ssh_login, key.private_key, servers_for_debug=self.servers.keys())
+                server, ssh_login, key['private_key'], servers_for_debug=self.servers.keys())
 
     def check_networks(self):
         """
@@ -218,44 +219,24 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                       seen_router_ids)
 
     def _create_and_associate_floating_ips(self):
-        public_network_id = CONF.network.public_network_id
-        for server in self.servers.keys():
-            floating_ip = self._create_floating_ip(server, public_network_id)
-
+        for server_id in self.servers.keys():
+            server = {'id': server_id, 'tenant_id': self.tenant_id}
+            floating_ip = self.create_floating_ip(server)
             self.floating_ip_tuple = Floating_IP_tuple(floating_ip, server)
             self.floating_ip_tuples.append(self.floating_ip_tuple)
-            self.addCleanup(self.cleanup_wrapper, floating_ip)
 
     def _create_new_network(self):
         self.new_net = self._create_network(self.tenant_id)
-        self.addCleanup(self.cleanup_wrapper, self.new_net)
         self.new_subnet = self._create_subnet(
             network=self.new_net,
             namestart='csr-smoke',
             gateway_ip=None)
-        self.addCleanup(self.cleanup_wrapper, self.new_subnet)
 
     def _create_server(self, name, network):
-        keypair = self.create_keypair(name='keypair-%s' % name)
-        self.addCleanup(self.cleanup_wrapper, keypair)
-        create_kwargs = {
-            'nics': [
-                {'net-id': network.id},
-            ],
-            'key_name': keypair.name,
-        }
-        ## This is done to support both test beds that have N1Kv vsm and
-        ## test beds that do not.  Modify later when N1Kv vsm supports
-        ## security groups
-        try:
-            security_groups = [self.security_group.name]
-            create_kwargs['security_groups'] = security_groups
-        except AttributeError as e:
-            LOG.debug("Skipping security group config on server")
-
+        create_kwargs = self.srv_kwargs
+        create_kwargs['networks'] = [{'uuid': network.id}]
         server = self.create_server(name=name, create_kwargs=create_kwargs)
-        self.addCleanup(self.cleanup_wrapper, server)
-        return dict(server=server, keypair=keypair)
+        return dict(server=server, keypair=self.keypair)
 
     def _check_network_internal_connectivity(self, network):
         """
@@ -267,7 +248,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         # get internal ports' ips:
         # get all network ports in the new network
         internal_ips = (p['fixed_ips'][0]['ip_address'] for p in
-                        self._list_ports(tenant_id=server.tenant_id,
+                        self._list_ports(tenant_id=self.tenant_id,
                                          network_id=network.id)
                         if p['device_owner'].startswith('network'))
         self._check_server_connectivity(floating_ip, internal_ips)
@@ -291,7 +272,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
     def _check_server_connectivity(self, floating_ip, address_list):
         ip_address = floating_ip.floating_ip_address
-        private_key = self.servers[self.floating_ip_tuple.server].private_key
+        private_key = self.servers[self.floating_ip_tuple.server['id']]['private_key']
         ssh_source = self._ssh_to_server(ip_address, private_key)
 
         for remote_ip in address_list:
@@ -305,7 +286,6 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 LOG.exception("Unable to access {dest} via ssh to "
                               "floating-ip {src}".format(dest=remote_ip,
                                                          src=floating_ip))
-                debug.log_ip_ns()
                 raise
 
     def _check_public_network_connectivity(self, should_connect=True, msg=None):
@@ -315,9 +295,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         private_key = None
 
         if should_connect:
-            private_key = self.servers[server].private_key
+            private_key = self.servers[server['id']]['private_key']
         # call the common method in the parent class
-        super(TestCSROneNet, self)._check_public_network_connectivity(
+        super(TestCSROneNet, self).check_public_network_connectivity(
             ip_address, ssh_login, private_key, should_connect, msg,
             self.servers.keys())
 
@@ -377,7 +357,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             # Use the first IP in the tuples list as the VM to ping all other VMs
             fip_tuple = self.floating_ip_tuples[0]
             linux_client_ip, server = fip_tuple
-            private_key = self.servers[server].private_key
+            private_key = self.servers[server['id']]['private_key']
             try:
                 self.linux_client = self.get_remote_client(server_or_ip=linux_client_ip.floating_ip_address,
                                                            username=ssh_login, private_key=private_key)
@@ -386,7 +366,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 self._log_console_output()
                 # network debug is called as part of ssh init
                 if not isinstance(e, test.exceptions.SSHTimeout):
-                    debug.log_net_debug()
+                    LOG.debug("Exception during SSH: {0}".format(e))
                 raise
 
         total_expected_pkts = 0
@@ -421,7 +401,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         for network in self._list_networks():
 
             internal_ips = (p['fixed_ips'][0]['ip_address'] for p in
-                            self._list_ports(tenant_id=server.tenant_id, network_id=network['id'])
+                            self._list_ports(tenant_id=server['tenant_id'], network_id=network['id'])
                             if p['device_owner'].startswith('network'))
 
             for remote_ip in internal_ips:
@@ -474,7 +454,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         gw = external_ips[0]
         LOG.debug("Pinging GW: {0}".format(gw))
-        ping_result = self._ping_ip_address(gw)
+        ping_result = self.ping_ip_address(gw)
         LOG.debug("Ping result : {0}".format(ping_result))
         self.assertTrue(ping_result, "Ping of gw {0} failed".format(gw))
 
@@ -482,7 +462,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         ping_result = False
         for i in range(0, 3):
             try:
-                ping_result = self._ping_ip_address(floating_ip.floating_ip_address)
+                ping_result = self.ping_ip_address(floating_ip.floating_ip_address)
                 LOG.debug("Ping result : {0}".format(ping_result))
                 time.sleep(1)
                 if ping_result is True:
@@ -505,7 +485,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             for server in self.servers.keys():
                 LOG.info("Deleting Server {0}".format(server))
                 ## Delete VM
-                self.cleanup_resource(server, TestCSROneNet)
+                self.delete_wrapper(server)
 
             self.total_vlan_events = 0
             for leaf_connection in self.leaf_sw_conns:

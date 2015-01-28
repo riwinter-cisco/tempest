@@ -926,9 +926,9 @@ class NetworkScenarioTest(ScenarioTest):
                     # if rule already exist - skip rule and continue
                     if not (ex.status_code == 409 and 'Security group rule already exists' in ex.message):
                         raise ex
-                else:
-                    self.assertEqual(r_direction, sg_rule.direction)
-                    rules.append(sg_rule)
+                    else:
+                        self.assertEqual(r_direction, sg_rule.direction)
+                        rules.append(sg_rule)
 
         return rules
 
