@@ -140,7 +140,8 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.servers = {}
         self.floating_ip_tuples = []
         self.linux_client = None
-        self.imix_pkts = (64, 572, 1500)
+        ## TODO: Put Imix traffic in tempest config
+        self.imix_pkts = (64, 572, 1400)
         self.keypair = self.create_keypair()
         self.srv_kwargs = {'key_name': self.keypair['name']}
 
