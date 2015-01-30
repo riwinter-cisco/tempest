@@ -96,6 +96,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
                 raise cls.skipException(msg)
         cls.check_preconditions()
 
+        cls.aggregates_client = cls.manager.aggregates_client
+        cls.hypervisor_client = cls.manager.hypervisor_client
+
         cls.nx_onep = None
         if cls.setup_has_leaf_sw:
             ## This test requires one switch - mulit switch is not supported
@@ -146,7 +149,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
         self.srv_kwargs = {'key_name': self.keypair['name']}
 
         ## Security groups not supported on N1kv - so we don't configured them
-        ## if there isn't a N1Kv in the test bed
+        ## if there is a N1Kv in the test bed
         if not self.setup_has_cisco_n1kv:
             self.security_group = self._create_security_group(tenant_id=self.tenant_id)
             self.srv_kwargs['security_groups'] = [self.security_group]
@@ -165,12 +168,49 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         self.check_networks()
 
+        #######################################################################################
+        ## Hypervisors/Aggregates/Zones
+        ##
+        ## Needed so that the test can control what hypervisor a server is started on.
+        ##
+        self.hypervisors_list = self.hypervisor_client.get_hypervisor_list()
+        self.assertGreaterEqual(len(self.hypervisors_list[1]), 2, "Not enough hypervisors to run the test")
+
+        ## Verify the hypervisors are operational and make a list of them for later use
+        self.hypervisors = []
+        for hypervisor in self.hypervisors_list[1]:
+            if hypervisor['status'] == 'enabled' and hypervisor['state'] == 'up':
+                self.hypervisors.append(hypervisor)
+
+        ## Need at least two(2) operational hypervisors
+        self.assertGreaterEqual(len(self.hypervisors), 2, "Not enough operational hypervisors to run the test")
+
+        ## Create an aggregate/zone per hypervisor host
+        self.aggregates = []
+        aggregate_kwargs = {'name': 'Agg1',
+                            'availability_zone': 'Zone1'}
+        _, aggregate = self.aggregates_client.create_aggregate(**aggregate_kwargs)
+        self.addCleanup(self._delete_aggregate, aggregate)
+        self.aggregates.append(aggregate)
+
+        aggregate_kwargs = {'name': 'Agg2',
+                            'availability_zone': 'Zone2'}
+        _, aggregate = self.aggregates_client.create_aggregate(**aggregate_kwargs)
+        self.addCleanup(self._delete_aggregate, aggregate)
+        self.aggregates.append(aggregate)
+
+        ## Add the hypervisors to the Aggregates/zones
+        self._add_host(self.aggregates[0]['id'], self.hypervisors[0]['hypervisor_hostname'])
+        self._add_host(self.aggregates[1]['id'], self.hypervisors[1]['hypervisor_hostname'])
+        ####################################
+
+        ## Create each server on a seperate hypervisor
         name = data_utils.rand_name('server')
-        serv_dict = self._create_server(name, self.network)
+        serv_dict = self._create_server(name, self.network, zone='Zone1')
         self.servers[serv_dict['server']['id']] = serv_dict['keypair']
 
         name = data_utils.rand_name('server')
-        serv_dict = self._create_server(name, self.network)
+        serv_dict = self._create_server(name, self.network, zone='Zone2')
         self.servers[serv_dict['server']['id']] = serv_dict['keypair']
 
         if self.setup_has_leaf_sw:
@@ -185,6 +225,18 @@ class TestCSROneNet(manager.NetworkScenarioTest):
 
         self._check_tenant_network_connectivity()
         self._create_and_associate_floating_ips()
+
+    def _delete_aggregate(self, aggregate):
+        self.aggregates_client.delete_aggregate(aggregate['id'])
+
+    def _add_host(self, aggregate_id, host):
+        _, aggregate = self.aggregates_client.add_host(aggregate_id, host)
+        self.addCleanup(self._remove_host, aggregate['id'], host)
+        self.assertIn(host, aggregate['hosts'])
+
+    def _remove_host(self, aggregate_id, host):
+        _, aggregate = self.aggregates_client.remove_host(aggregate_id, host)
+        self.assertNotIn(host, aggregate['hosts'])
 
     def _check_tenant_network_connectivity(self):
         ssh_login = CONF.compute.image_ssh_user
@@ -233,9 +285,11 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             namestart='csr-smoke',
             gateway_ip=None)
 
-    def _create_server(self, name, network):
+    def _create_server(self, name, network, zone=None):
         create_kwargs = self.srv_kwargs
         create_kwargs['networks'] = [{'uuid': network.id}]
+        if zone is not None:
+            create_kwargs['availability_zone'] = zone
         server = self.create_server(name=name, create_kwargs=create_kwargs)
         return dict(server=server, keypair=self.keypair)
 
