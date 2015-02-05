@@ -1064,11 +1064,13 @@ CiscoGroup = [
                help='The password from the admin user'),
     cfg.ListOpt('leaf_sws',
                 default=None,
-                help='A \':\' separated list of attributes about the lead switches in the test bed. '
+                help='A \':\' separated list of attributes about the lead '
+                     'switches in the test bed. '
                      '[ip:user:pw:ssh-port]'),
     cfg.ListOpt('leaf_sw_connections',
                 default=None,
-                help='A \':\' separated list of describing the connection between nodes and leaf switch. '
+                help='A \':\' separated list of describing the connection '
+                     'between nodes and leaf switch. '
                      '[ip:compute-node:port]'),
 ]
 

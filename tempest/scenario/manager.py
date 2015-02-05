@@ -2,7 +2,7 @@
 # Copyright 2013 IBM Corp.
 # All Rights Reserved.
 #
-#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
 #
@@ -587,6 +587,7 @@ class NetworkScenarioTest(ScenarioTest):
                 'list_%s' % resource_type)
             resource_list = temp_method(*args, **kwargs)
             return resource_list[resource_type]
+
         return temp
 
     def _create_subnet(self, network, client=None, namestart='subnet-smoke',
@@ -724,6 +725,7 @@ class NetworkScenarioTest(ScenarioTest):
         :param status: target status
         :raises: AssertionError if status doesn't match
         """
+
         def refresh():
             floating_ip.refresh()
             return status == floating_ip.status
@@ -773,6 +775,7 @@ class NetworkScenarioTest(ScenarioTest):
         :returns: boolean -- should_succeed == ping
         :returns: ping is false if ping failed
         """
+
         def ping_remote():
             try:
                 source.ping_host(dest)
@@ -924,7 +927,9 @@ class NetworkScenarioTest(ScenarioTest):
                         client=client, secgroup=secgroup, **ruleset)
                 except exceptions.Conflict as ex:
                     # if rule already exist - skip rule and continue
-                    if not (ex.status_code == 409 and 'Security group rule already exists' in ex.message):
+                    if not (ex.status_code == 409 and 'Security group rule '
+                                                      'already '
+                                                      'exists' in ex.message):
                         raise ex
                     else:
                         self.assertEqual(r_direction, sg_rule.direction)
@@ -1073,7 +1078,7 @@ class BaremetalScenarioTest(ScenarioTest):
     @classmethod
     def resource_setup(cls):
         if (not CONF.service_available.ironic or
-           not CONF.baremetal.driver_enabled):
+                not CONF.baremetal.driver_enabled):
             msg = 'Ironic not available or Ironic compute driver not enabled'
             raise cls.skipException(msg)
         super(BaremetalScenarioTest, cls).resource_setup()
@@ -1099,7 +1104,7 @@ class BaremetalScenarioTest(ScenarioTest):
             return False
 
         if not tempest.test.call_until_true(
-            check_state, timeout, interval):
+                check_state, timeout, interval):
             msg = ("Timed out waiting for node %s to reach %s state(s) %s" %
                    (node_id, state_attr, target_states))
             raise exceptions.TimeoutException(msg)
@@ -1126,7 +1131,7 @@ class BaremetalScenarioTest(ScenarioTest):
             return node is not None
 
         if not tempest.test.call_until_true(
-            _get_node, CONF.baremetal.association_timeout, 1):
+                _get_node, CONF.baremetal.association_timeout, 1):
             msg = ('Timed out waiting to get Ironic node by instance id %s'
                    % instance_id)
             raise exceptions.TimeoutException(msg)
@@ -1282,7 +1287,7 @@ class OrchestrationScenarioTest(ScenarioTest):
     def _stack_output(stack, output_key):
         """Return a stack output value for a given key."""
         return next((o['output_value'] for o in stack['outputs']
-                    if o['output_key'] == output_key), None)
+                     if o['output_key'] == output_key), None)
 
 
 class SwiftScenarioTest(ScenarioTest):
