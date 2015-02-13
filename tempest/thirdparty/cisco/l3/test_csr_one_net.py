@@ -173,8 +173,7 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             # found in tempest.config
             for leaf_connection in self.leaf_sw_conns:
                 self.nx_onep.monitor_vlan_state(
-                    leaf_connection['port'],
-                    self.network['provider:segmentation_id'])
+                    leaf_connection['port'])
 
         self.check_networks()
 
@@ -238,10 +237,9 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             for leaf_connection in self.leaf_sw_conns:
                 self.num_vlan_events += \
                     self.nx_onep.get_num_interface_events(
-                        leaf_connection['port'],
-                        self.network['provider:segmentation_id'])
+                        leaf_connection['port'])
 
-            self.assertGreaterEqual(1, self.num_vlan_events,
+            self.assertGreaterEqual( self.num_vlan_events, 1,
                                     'Minimum number of VLAN events is '
                                     'incorrect')
 
@@ -619,19 +617,20 @@ class TestCSROneNet(manager.NetworkScenarioTest):
             for server in self.servers.keys():
                 LOG.info("Deleting Server {0}".format(server))
                 # Delete VM
-                self.delete_wrapper(server)
+                self.servers_client.delete_server(server)
+                self.servers_client.wait_for_server_termination(server)
 
             self.total_vlan_events = 0
             for leaf_connection in self.leaf_sw_conns:
                 self.total_vlan_events += \
                     self.nx_onep.get_num_interface_events(
-                        leaf_connection['port'],
-                        self.network['provider:segmentation_id'])
+                        leaf_connection['port'])
 
             # We should see the same number of vlan events as before when the
             # VMs were created.
+
             self.assertEqual(self.num_vlan_events * 2, self.total_vlan_events,
                              'Number of VLAN events is incorrect')
-            self.assertIsNone(self.nx_onep.trace_backs)
+            self.assertEqual(self.nx_onep.trace_backs, 0)
 
         LOG.debug("test_csr_one_net: End")

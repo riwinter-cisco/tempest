@@ -10,6 +10,7 @@
 import httplib2
 import logging
 import os
+import pexpect
 
 # NetworkElement must be the first import or OnePk will fail for
 # ImportError: No module named Shared.ttypes
@@ -244,8 +245,12 @@ class NxOnePMgr(NxMgr):
 
         return target_interface
 
-    def monitor_vlan_state(self, interface_name, vlan_id):
+    def monitor_vlan_state(self, interface_name):
         if self.nx_mgr is None:
+            return None
+
+        if self.vlan_monitors is not None and \
+                self.vlan_monitors.has_key(interface_name):
             return None
 
         vlan_mon = NxInterfaceVlanEventMonitor(self, interface_name)
@@ -257,9 +262,30 @@ class NxOnePMgr(NxMgr):
         if self.nx_mgr is None:
             return None
 
-        LOG.debug("vlan_monitors {0}".format(self.vlan_monitors))
-        vlan_mon = self.vlan_monitors[interface_name]
-        return vlan_mon.num_events
+        num_events = 0
+        if interface_name is 'all':
+            for intf in self.vlan_monitors.keys():
+                vlan_mon = self.vlan_monitors[intf]
+                num_events += vlan_mon.num_events
+        else:
+            LOG.debug("vlan_monitors {0}".format(self.vlan_monitors))
+            vlan_mon = self.vlan_monitors[interface_name]
+            num_events = vlan_mon.num_events
+
+        return num_events
+
+    def clear_interface_events(self, interface):
+        if self.nx_mgr is None:
+            return None
+
+        if interface is 'all':
+            for intf in self.vlan_monitors.keys():
+                vlan_mon = self.vlan_monitors[intf]
+                vlan_mon.clear_events()
+        else:
+            self.vlan_monitors[interface].clear_events()
+
+        return None
 
     def show_vlan_events(self):
         if self.nx_mgr is None or self.vlan_event_handle is None:
@@ -320,6 +346,12 @@ class NxInterfaceVlanEventMonitor(InterfaceVlanListener):
         if len(self.events) > 0:
             return len(self.events)
         return 0
+
+    def clear_events(self):
+        for event in self.events:
+            del event
+
+        self.events = []
 
     def handle_event(self, event, client_data):
         self.events.append(event)
